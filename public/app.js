@@ -47,7 +47,7 @@ function showLogin() {
     err.style.display = 'block';
     input.select();
   };
-  input.onkeydown = (e) => e.key === 'Enter' && go();
+  input.onkeydown = (e) => { if (e.key === 'Enter') go(); };
   document.body.append(h('div', { id: 'login', class: 'login' },
     h('div', { class: 'card login-card' },
       h('img', { src: 'logo.jpg', alt: 'Teca & Xerinola', style: 'width:100%;max-width:280px;display:block;margin:0 auto 16px' }),
@@ -628,7 +628,7 @@ function renderConfig() {
   const addSchool = async () => {
     try { await api('/api/schools', { json: { name: newSchool.value } }); toast('Escola afegida'); await reload(); } catch (e) { toast(e.message, true); }
   };
-  newSchool.onkeydown = (e) => e.key === 'Enter' && addSchool();
+  newSchool.onkeydown = (e) => { if (e.key === 'Enter') addSchool(); };
 
   const providerForm = (p) => {
     const f = {
@@ -686,7 +686,7 @@ function renderConfig() {
           box.querySelector('input').focus();
         } catch (e) { toast(e.message, true); }
       };
-      input.onkeydown = (e) => e.key === 'Enter' && add();
+      input.onkeydown = (e) => { if (e.key === 'Enter') add(); };
       input.onpaste = (e) => {
         const t = e.clipboardData.getData('text');
         if (t.includes('\n')) { e.preventDefault(); input.value = t; add(); }
