@@ -304,7 +304,6 @@ function renderSchools() {
 let saveTimer = null;
 let saveChain = Promise.resolve();
 let photoIdx = 0;
-let rotation = {};
 
 function renderSchool() {
   const school = state.data.schools.find((s) => s.id === state.schoolId);
@@ -320,7 +319,6 @@ function renderSchool() {
   const stage = h('div', { class: 'stage' },
     cur ? h('img', {
       src: cur.url,
-      style: `transform: rotate(${rotation[cur.id] || 0}deg)`,
       onclick: () => stage.classList.toggle('zoom'),
     }) : h('div', { class: 'empty-photo' }, 'Encara no hi ha fotos.', h('br'), 'Arrossega-les aquí o clica "Afegir fotos".'));
   const viewer = h('div', { class: 'viewer' },
@@ -329,7 +327,13 @@ function renderSchool() {
       h('div', { class: 'thumbs' }, s.photos.map((p, i) =>
         h('img', { src: p.url, class: i === photoIdx ? 'sel' : '', onclick: () => { photoIdx = i; renderSchool(); } }))),
       h('span', { style: 'flex:1' }),
-      cur ? h('button', { class: 'btn small', title: 'Girar', onclick: () => { rotation[cur.id] = ((rotation[cur.id] || 0) + 90) % 360; renderSchool(); } }, '⟳ Girar') : null,
+      cur ? h('button', { class: 'btn small', title: 'Girar la foto 90° (queda desada)', onclick: async (e) => {
+        e.target.disabled = true;
+        try {
+          state.data.week.submissions[school.id] = await api(`/api/weeks/${state.weekId}/schools/${school.id}/photos/${cur.id}/rotate`, { json: { degrees: 90 } });
+          renderSchool();
+        } catch (err) { toast(err.message, true); e.target.disabled = false; }
+      } }, '⟳ Girar') : null,
       cur ? h('button', { class: 'btn small danger', onclick: async () => {
         if (!(await confirmBox('Esborrar foto', 'Segur que vols esborrar aquesta foto? Les línies ja llegides es mantenen.', 'Esborrar'))) return;
         state.data.week.submissions[school.id] = await api(`/api/weeks/${state.weekId}/schools/${school.id}/photos/${cur.id}`, { method: 'DELETE' });

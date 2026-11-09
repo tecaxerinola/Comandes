@@ -5,7 +5,7 @@
   "functions": {
     "api/index.js": {
       "maxDuration": 300,
-      "includeFiles": "{lib/seed-data.json,supabase/migrations/**,node_modules/pdfkit/js/**}"
+      "includeFiles": "{lib/seed-data.json,supabase/migrations/**,public/logo.jpg,node_modules/pdfkit/js/**}"
     }
   },
   "rewrites": [
