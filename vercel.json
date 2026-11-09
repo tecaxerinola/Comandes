@@ -9,7 +9,16 @@
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/photos/(.*)", "destination": "/api" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/photos/(.*)",
+      "destination": "/api"
+    }
+  ],
+  "regions": [
+    "fra1"
   ]
 }
