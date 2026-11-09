@@ -1,10 +1,10 @@
 import 'dotenv/config';
 import express from 'express';
 import multer from 'multer';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getDb, save, newId, getWeek, getSubmission, isoWeekOf, weekId, UPLOAD_DIR } from './lib/db.js';
+import * as db from './lib/db.js';
+import { initStorage, putFile, getFile, removeFile, usingSupabaseStorage } from './lib/storage.js';
 import { readOrderPhotos, ocrAvailable } from './lib/ocr.js';
 import { ordersByProvider, orderText, orderPdf, pdfFileName, weekLabel } from './lib/orders.js';
 import { sendMail, mailAvailable } from './lib/mail.js';
@@ -16,8 +16,7 @@ app.use(express.json({ limit: '2mb' }));
 // ---------- Contrasenya opcional (APP_PASSWORD) ----------
 if (process.env.APP_PASSWORD) {
   app.use((req, res, next) => {
-    const hdr = req.headers.authorization || '';
-    const [, b64] = hdr.split(' ');
+    const [, b64] = (req.headers.authorization || '').split(' ');
     const pass = b64 ? Buffer.from(b64, 'base64').toString().split(':').slice(1).join(':') : '';
     if (pass === process.env.APP_PASSWORD) return next();
     res.set('WWW-Authenticate', 'Basic realm="Comandes"').status(401).send('Cal contrasenya');
@@ -25,233 +24,223 @@ if (process.env.APP_PASSWORD) {
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d' }));
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: UPLOAD_DIR,
-    filename: (req, file, cb) => {
-      const ext = { 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif' }[file.mimetype] || '.jpg';
-      cb(null, `${Date.now()}_${newId()}${ext}`);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024, files: 20 },
   fileFilter: (req, file, cb) => cb(null, /^image\/(jpeg|png|webp|gif)$/.test(file.mimetype)),
 });
 
 const wrap = (fn) => (req, res) =>
   Promise.resolve(fn(req, res)).catch((err) => {
-    console.error(err);
-    res.status(err.status || 500).json({ error: err.message || 'Error' });
+    if (!err.status) console.error(err);
+    const msg = err.code === '23505' ? 'Ja existeix un registre amb aquest nom' : err.message || 'Error';
+    res.status(err.status || (err.code === '23505' ? 400 : 500)).json({ error: msg });
   });
 const fail = (status, message) => Object.assign(new Error(message), { status });
-
-const findSchool = (id) => getDb().schools.find((s) => s.id === id) || (() => { throw fail(404, 'Escola no trobada'); })();
-const findProvider = (id) => getDb().providers.find((p) => p.id === id) || (() => { throw fail(404, 'Proveïdor no trobat'); })();
+const list = (v) => (Array.isArray(v) ? v : String(v ?? '').split(/[\n;,]+/)).map((x) => String(x).trim()).filter(Boolean);
 
 // ---------- Configuració i estat ----------
-app.get('/api/config', (req, res) => {
-  const now = isoWeekOf(new Date());
-  res.json({ ocr: ocrAvailable(), mail: mailAvailable(), currentWeek: weekId(now.year, now.week), settings: getDb().settings });
-});
-
-app.get('/api/state', wrap((req, res) => {
-  const db = getDb();
-  const week = getWeek(String(req.query.week));
-  res.json({ week, schools: db.schools, providers: db.providers, settings: db.settings });
+app.get('/api/config', wrap(async (req, res) => {
+  const now = db.isoWeekOf(new Date());
+  res.json({ ocr: ocrAvailable(), mail: mailAvailable(), currentWeek: db.weekId(now.year, now.week), settings: await db.getSettings() });
 }));
 
-app.get('/api/weeks', (req, res) => {
-  res.json(Object.values(getDb().weeks).map((w) => ({ id: w.id, week: w.week, from: w.from, to: w.to })));
-});
+app.get('/api/state', wrap(async (req, res) => {
+  res.json(await db.loadWeek(String(req.query.week)));
+}));
 
-app.put('/api/settings', wrap((req, res) => {
-  const db = getDb();
-  const { mailSubject, mailBody } = req.body;
-  if (typeof mailSubject === 'string') db.settings.mailSubject = mailSubject;
-  if (typeof mailBody === 'string') db.settings.mailBody = mailBody;
-  save();
-  res.json(db.settings);
+app.put('/api/settings', wrap(async (req, res) => {
+  const { mailFrom, mailSubject, mailBody } = req.body;
+  if (mailFrom !== undefined && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mailFrom)) throw fail(400, 'Correu del remitent no vàlid');
+  res.json(await db.setSettings({ mailFrom, mailSubject, mailBody }));
 }));
 
 // ---------- Escoles (clients) ----------
-app.post('/api/schools', wrap((req, res) => {
+app.post('/api/schools', wrap(async (req, res) => {
   const name = String(req.body.name || '').trim();
   if (!name) throw fail(400, 'Cal un nom');
-  const db = getDb();
-  if (db.schools.some((s) => s.name.toLowerCase() === name.toLowerCase())) throw fail(400, 'Ja existeix una escola amb aquest nom');
-  const school = { id: newId(), name, active: true };
-  db.schools.push(school);
-  save();
+  res.json(await db.createSchool(name));
+}));
+
+app.patch('/api/schools/:id', wrap(async (req, res) => {
+  const name = typeof req.body.name === 'string' && req.body.name.trim() ? req.body.name.trim() : undefined;
+  const active = typeof req.body.active === 'boolean' ? req.body.active : undefined;
+  const school = await db.updateSchool(req.params.id, { name, active });
+  if (!school) throw fail(404, 'Escola no trobada');
   res.json(school);
 }));
 
-app.patch('/api/schools/:id', wrap((req, res) => {
-  const school = findSchool(req.params.id);
-  if (typeof req.body.name === 'string' && req.body.name.trim()) school.name = req.body.name.trim();
-  if (typeof req.body.active === 'boolean') school.active = req.body.active;
-  save();
-  res.json(school);
-}));
-
-// ---------- Proveïdors ----------
+// ---------- Proveïdors i productes ----------
 const CHANNELS = ['email', 'whatsapp', 'phone', 'print'];
-function applyProvider(p, body) {
-  if (typeof body.name === 'string' && body.name.trim()) p.name = body.name.trim();
-  if (CHANNELS.includes(body.channel)) p.channel = body.channel;
-  const list = (v) => (Array.isArray(v) ? v : String(v).split(/[\n;,]+/)).map((x) => String(x).trim()).filter(Boolean);
-  if (body.emails !== undefined) p.emails = list(body.emails);
-  if (body.aliases !== undefined) p.aliases = list(body.aliases);
-  if (body.products !== undefined) {
-    p.products = (Array.isArray(body.products) ? body.products : String(body.products).split('\n'))
-      .map((x) => x.trim()).filter(Boolean);
-  }
-  if (typeof body.phone === 'string') p.phone = body.phone.replace(/[^\d+]/g, '');
-  if (typeof body.notes === 'string') p.notes = body.notes;
-  if (typeof body.active === 'boolean') p.active = body.active;
+function providerFields(body) {
+  const f = {};
+  if (typeof body.name === 'string' && body.name.trim()) f.name = body.name.trim();
+  if (CHANNELS.includes(body.channel)) f.channel = body.channel;
+  if (body.emails !== undefined) f.emails = list(body.emails);
+  if (body.aliases !== undefined) f.aliases = list(body.aliases).map((x) => x.toUpperCase());
+  if (typeof body.phone === 'string') f.phone = body.phone.replace(/[^\d+]/g, '');
+  if (typeof body.notes === 'string') f.notes = body.notes.trim();
+  if (typeof body.active === 'boolean') f.active = body.active;
+  return f;
 }
+const productNames = (v) => (Array.isArray(v) ? v : String(v ?? '').split('\n'))
+  .map((x) => String(x).trim().replace(/\s+/g, ' ').toUpperCase()).filter(Boolean);
 
-app.post('/api/providers', wrap((req, res) => {
-  const name = String(req.body.name || '').trim();
-  if (!name) throw fail(400, 'Cal un nom');
-  const p = { id: newId(), name, channel: 'email', emails: [], phone: '', aliases: [], notes: '', active: true, products: [] };
-  applyProvider(p, req.body);
-  getDb().providers.push(p);
-  save();
+app.post('/api/providers', wrap(async (req, res) => {
+  const f = providerFields(req.body);
+  if (!f.name) throw fail(400, 'Cal un nom');
+  const id = f.name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 30) || 'prov';
+  const existing = await db.listProviders();
+  const finalId = existing.some((p) => p.id === id) ? `${id}${Date.now().toString(36)}` : id;
+  let p = await db.createProvider({ channel: 'email', emails: [], phone: '', aliases: [], notes: '', ...f, id: finalId });
+  if (req.body.products) p = await db.addProducts(finalId, productNames(req.body.products));
   res.json(p);
 }));
 
-app.patch('/api/providers/:id', wrap((req, res) => {
-  const p = findProvider(req.params.id);
-  applyProvider(p, req.body);
-  save();
+app.patch('/api/providers/:id', wrap(async (req, res) => {
+  const p = await db.updateProvider(req.params.id, providerFields(req.body));
+  if (!p) throw fail(404, 'Proveïdor no trobat');
   res.json(p);
+}));
+
+app.post('/api/providers/:id/products', wrap(async (req, res) => {
+  const names = productNames(req.body.names ?? req.body.name);
+  if (!names.length) throw fail(400, 'Escriu el nom del producte');
+  const p = await db.addProducts(req.params.id, names);
+  if (!p) throw fail(404, 'Proveïdor no trobat');
+  res.json(p);
+}));
+
+app.delete('/api/providers/:id/products', wrap(async (req, res) => {
+  res.json(await db.removeProduct(req.params.id, String(req.body.name || '')));
+}));
+
+// ---------- Fotos ----------
+app.get('/photos/:id', wrap(async (req, res) => {
+  const photo = await db.getPhoto(req.params.id);
+  if (!photo) throw fail(404, 'Foto no trobada');
+  res.set('Content-Type', photo.media_type).set('Cache-Control', 'private, max-age=604800');
+  res.send(await getFile(photo.storage_path));
 }));
 
 // ---------- Comandes de cada escola ----------
-function startReading(weekIdStr, schoolId, photoIds, replace) {
-  const db = getDb();
-  const week = getWeek(weekIdStr);
-  const sub = getSubmission(week, schoolId);
-  const photos = sub.photos.filter((p) => photoIds.includes(p.id));
+async function startReading(wid, schoolId, photoIds, replace) {
+  const sub = await db.ensureSubmission(wid, schoolId);
+  const photos = await db.photosOf(sub.id, photoIds);
   if (!photos.length) return;
-  sub.reading = true;
-  sub.readError = null;
-  save();
+  await db.updateSubmissionFields(sub.id, { reading: true, readError: null });
 
-  const providers = db.providers.filter((p) => p.active);
-  const images = photos.map((p) => ({ data: fs.readFileSync(path.join(UPLOAD_DIR, p.file)), mediaType: p.mediaType }));
-
-  readOrderPhotos(images, providers, week)
-    .then((result) => {
+  (async () => {
+    try {
+      const providers = (await db.listProviders()).filter((p) => p.active);
+      const images = await Promise.all(photos.map(async (p) => ({ data: await getFile(p.storage_path), mediaType: p.media_type })));
+      const result = await readOrderPhotos(images, providers, db.weekInfo(wid));
       const items = (result.items || []).map((it) => ({
-        id: newId(),
         providerId: it.provider_id,
         product: (it.product || '').trim().toUpperCase(),
         quantity: (it.quantity || '').trim(),
         day: (it.serve_day || '').trim(),
-        note: '',
         aiNote: (it.note || '').trim(),
         confidence: it.confidence,
         inCatalog: it.in_catalog,
         source: 'ia',
       }));
-      sub.items = replace ? [...sub.items.filter((i) => i.source !== 'ia'), ...items] : [...sub.items, ...items];
+      await db.addAiItems(sub.id, items, replace);
+      await db.markPhotosRead(photos.map((p) => p.id));
+      const current = await db.getSubmission(wid, schoolId);
       const obs = (result.observations || '').trim();
-      if (obs && !sub.observations.includes(obs)) sub.observations = [sub.observations, obs].filter(Boolean).join('\n');
-      sub.detectedSchool = result.school_name || null;
-      sub.weekText = result.week_text || null;
-      for (const p of photos) p.read = true;
-      if (sub.status !== 'confirmed') sub.status = 'review';
-    })
-    .catch((err) => {
+      await db.updateSubmissionFields(sub.id, {
+        reading: false,
+        observations: obs && !current.observations.includes(obs) ? [current.observations, obs].filter(Boolean).join('\n') : undefined,
+        detectedSchool: result.school_name || null,
+        weekText: result.week_text || null,
+        status: current.status === 'confirmed' ? undefined : 'review',
+      });
+    } catch (err) {
       console.error('Error llegint fotos:', err);
-      sub.readError = err.message || 'Error llegint les fotos';
-      if (sub.status === 'pending') sub.status = 'review';
-    })
-    .finally(() => {
-      sub.reading = false;
-      sub.updatedAt = new Date().toISOString();
-      save();
-    });
+      const current = await db.getSubmission(wid, schoolId).catch(() => null);
+      await db.updateSubmissionFields(sub.id, {
+        reading: false,
+        readError: err.message || 'Error llegint les fotos',
+        status: current?.status === 'pending' ? 'review' : undefined,
+      }).catch(() => {});
+    }
+  })();
 }
 
-app.post('/api/weeks/:week/schools/:schoolId/photos', upload.array('photos', 20), wrap((req, res) => {
-  findSchool(req.params.schoolId);
+const checkWeek = (wid) => db.weekInfo(wid).id;
+
+app.post('/api/weeks/:week/schools/:schoolId/photos', upload.array('photos', 20), wrap(async (req, res) => {
+  const wid = checkWeek(req.params.week);
   if (!req.files?.length) throw fail(400, "No s'ha rebut cap imatge vàlida (JPG, PNG o WEBP)");
-  const week = getWeek(req.params.week);
-  const sub = getSubmission(week, req.params.schoolId);
-  const added = req.files.map((f) => ({ id: newId(), file: f.filename, mediaType: f.mimetype, uploadedAt: new Date().toISOString(), read: false }));
-  sub.photos.push(...added);
-  if (sub.status === 'confirmed') sub.status = 'review';
-  sub.updatedAt = new Date().toISOString();
-  save();
-  if (ocrAvailable() && req.query.read !== '0') startReading(week.id, req.params.schoolId, added.map((p) => p.id), false);
-  else if (sub.status === 'pending') { sub.status = 'review'; save(); }
-  res.json(sub);
+  const sub = await db.ensureSubmission(wid, req.params.schoolId);
+  const added = [];
+  for (const f of req.files) {
+    const ext = { 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }[f.mimetype] || 'jpg';
+    const key = `${wid}/${req.params.schoolId}/${Date.now()}_${db.newId().slice(0, 8)}.${ext}`;
+    await putFile(key, f.buffer, f.mimetype);
+    added.push(await db.addPhoto(sub.id, key, f.mimetype));
+  }
+  await db.updateSubmissionFields(sub.id, { status: sub.status === 'confirmed' || !ocrAvailable() ? 'review' : undefined });
+  if (ocrAvailable() && req.query.read !== '0') await startReading(wid, req.params.schoolId, added.map((p) => p.id), false);
+  res.json(await db.getSubmission(wid, req.params.schoolId));
 }));
 
-app.post('/api/weeks/:week/schools/:schoolId/read', wrap((req, res) => {
-  if (!ocrAvailable()) throw fail(400, "La lectura automàtica no està configurada (falta ANTHROPIC_API_KEY).");
-  const week = getWeek(req.params.week);
-  const sub = getSubmission(week, req.params.schoolId);
-  if (sub.reading) throw fail(409, 'Ja s\'està llegint');
-  startReading(week.id, req.params.schoolId, sub.photos.map((p) => p.id), true);
-  res.json(sub);
+app.post('/api/weeks/:week/schools/:schoolId/read', wrap(async (req, res) => {
+  if (!ocrAvailable()) throw fail(400, 'La lectura automàtica no està configurada (falta ANTHROPIC_API_KEY).');
+  const wid = checkWeek(req.params.week);
+  const sub = await db.getSubmission(wid, req.params.schoolId);
+  if (sub.reading) throw fail(409, "Ja s'està llegint");
+  await startReading(wid, req.params.schoolId, null, true);
+  res.json(await db.getSubmission(wid, req.params.schoolId));
 }));
 
-app.delete('/api/weeks/:week/schools/:schoolId/photos/:photoId', wrap((req, res) => {
-  const sub = getSubmission(getWeek(req.params.week), req.params.schoolId);
-  const photo = sub.photos.find((p) => p.id === req.params.photoId);
+app.delete('/api/weeks/:week/schools/:schoolId/photos/:photoId', wrap(async (req, res) => {
+  const wid = checkWeek(req.params.week);
+  const photo = await db.deletePhoto(req.params.photoId);
   if (!photo) throw fail(404, 'Foto no trobada');
-  sub.photos = sub.photos.filter((p) => p !== photo);
-  fs.rm(path.join(UPLOAD_DIR, photo.file), { force: true }, () => {});
-  save();
-  res.json(sub);
+  await removeFile(photo.storage_path).catch(() => {});
+  res.json(await db.getSubmission(wid, req.params.schoolId));
 }));
 
-app.put('/api/weeks/:week/schools/:schoolId', wrap((req, res) => {
-  findSchool(req.params.schoolId);
-  const sub = getSubmission(getWeek(req.params.week), req.params.schoolId);
-  const { items, observations, status } = req.body;
+app.put('/api/weeks/:week/schools/:schoolId', wrap(async (req, res) => {
+  const wid = checkWeek(req.params.week);
+  const sub = await db.ensureSubmission(wid, req.params.schoolId);
+  const { items, observations, status, version } = req.body;
   if (Array.isArray(items)) {
-    sub.items = items.map((it) => ({
-      id: it.id || newId(),
+    await db.replaceItems(sub.id, items.map((it) => ({
+      id: /^[0-9a-f-]{36}$/i.test(it.id || '') ? it.id : undefined,
       providerId: String(it.providerId || ''),
       product: String(it.product || '').trim(),
       quantity: String(it.quantity || '').trim(),
       day: String(it.day || '').trim(),
       note: String(it.note || '').trim(),
-      aiNote: it.aiNote || '',
-      confidence: it.confidence || 'alta',
+      aiNote: String(it.aiNote || ''),
+      confidence: it.confidence === 'baixa' ? 'baixa' : 'alta',
       inCatalog: it.inCatalog ?? true,
-      source: it.source || 'manual',
-    }));
+      source: it.source === 'ia' ? 'ia' : 'manual',
+    })), typeof version === 'number' ? version : undefined);
   }
-  if (typeof observations === 'string') sub.observations = observations;
-  if (['pending', 'review', 'confirmed'].includes(status)) {
-    if (status === 'confirmed' && sub.items.some((i) => !i.providerId)) throw fail(400, 'Hi ha línies sense proveïdor assignat');
-    sub.status = status;
-  }
-  sub.updatedAt = new Date().toISOString();
-  save();
-  res.json(sub);
+  if (status === 'confirmed' && (items || []).some((i) => !i.providerId)) throw fail(400, 'Hi ha línies sense proveïdor assignat');
+  await db.updateSubmissionFields(sub.id, {
+    observations: typeof observations === 'string' ? observations : undefined,
+    status: ['pending', 'review', 'confirmed'].includes(status) ? status : undefined,
+  });
+  res.json(await db.getSubmission(wid, req.params.schoolId));
 }));
 
 // ---------- Comandes per proveïdor ----------
-function recipientsSummary(p) {
-  if (p.channel === 'email') return p.emails.join(', ');
-  return p.phone || '';
-}
+const recipientsSummary = (p) => (p.channel === 'email' ? p.emails.join(', ') : p.phone || '');
+const subjectFor = (settings, week) => settings.mailSubject.replace('{setmana}', week.week);
 
-app.get('/api/weeks/:week/orders', wrap((req, res) => {
-  const db = getDb();
-  const week = getWeek(req.params.week);
-  const confirmed = ordersByProvider(db, week, { onlyConfirmed: true });
-  const all = ordersByProvider(db, week, { onlyConfirmed: false });
-  const activeSchools = db.schools.filter((s) => s.active);
-  const notConfirmed = activeSchools.filter((s) => week.submissions[s.id]?.status !== 'confirmed').map((s) => s.name);
-  const out = all.map((o) => {
+app.get('/api/weeks/:week/orders', wrap(async (req, res) => {
+  const data = await db.loadWeek(checkWeek(req.params.week));
+  const { week } = data;
+  const confirmed = ordersByProvider(data, week, { onlyConfirmed: true });
+  const all = ordersByProvider(data, week, { onlyConfirmed: false });
+  const notConfirmed = data.schools.filter((s) => s.active && week.submissions[s.id]?.status !== 'confirmed').map((s) => s.name);
+  const orders = all.map((o) => {
     const c = confirmed.find((x) => x.provider.id === o.provider.id);
     return {
       provider: o.provider,
@@ -259,23 +248,22 @@ app.get('/api/weeks/:week/orders', wrap((req, res) => {
       schools: o.schools.map(({ school, status, items }) => ({ id: school.id, name: school.name, status, items })),
       confirmedSchools: c ? c.schools.length : 0,
       pendingSchools: o.schools.filter((s) => s.status !== 'confirmed').map((s) => s.school.name),
-      text: c ? orderText(c, week, db.settings) : '',
+      text: c ? orderText(c, week, data.settings) : '',
       sent: week.sent[o.provider.id] || null,
     };
   });
-  res.json({ orders: out, notConfirmed, subject: db.settings.mailSubject.replace('{setmana}', week.week), label: weekLabel(week) });
+  res.json({ orders, notConfirmed, subject: subjectFor(data.settings, week), from: data.settings.mailFrom, label: weekLabel(week) });
 }));
 
-function confirmedOrder(req) {
-  const db = getDb();
-  const week = getWeek(req.params.week);
-  const order = ordersByProvider(db, week).find((o) => o.provider.id === req.params.providerId);
+async function confirmedOrder(req) {
+  const data = await db.loadWeek(checkWeek(req.params.week));
+  const order = ordersByProvider(data, data.week).find((o) => o.provider.id === req.params.providerId);
   if (!order) throw fail(404, 'Aquest proveïdor no té cap línia confirmada aquesta setmana');
-  return { db, week, order };
+  return { data, week: data.week, order };
 }
 
 app.get('/api/weeks/:week/orders/:providerId/pdf', wrap(async (req, res) => {
-  const { week, order } = confirmedOrder(req);
+  const { week, order } = await confirmedOrder(req);
   const pdf = await orderPdf(order, week);
   res.set('Content-Type', 'application/pdf');
   res.set('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="${encodeURIComponent(pdfFileName(order, week))}"`);
@@ -283,39 +271,42 @@ app.get('/api/weeks/:week/orders/:providerId/pdf', wrap(async (req, res) => {
 }));
 
 app.post('/api/weeks/:week/orders/:providerId/send-mail', wrap(async (req, res) => {
-  if (!mailAvailable()) throw fail(400, "L'enviament de correu no està configurat (SMTP).");
-  const { db, week, order } = confirmedOrder(req);
+  if (!mailAvailable()) throw fail(400, "L'enviament de correu no està configurat al servidor (SMTP).");
+  const { data, week, order } = await confirmedOrder(req);
   if (!order.provider.emails.length) throw fail(400, 'Aquest proveïdor no té cap correu');
   const pdf = await orderPdf(order, week);
-  await sendMail({
-    to: order.provider.emails.join(', '),
-    subject: db.settings.mailSubject.replace('{setmana}', week.week),
-    text: db.settings.mailBody,
-    attachments: [{ filename: pdfFileName(order, week), content: pdf, contentType: 'application/pdf' }],
-  });
-  week.sent[order.provider.id] = { at: new Date().toISOString(), via: 'email', to: order.provider.emails.join(', ') };
-  save();
-  res.json(week.sent[order.provider.id]);
+  const to = order.provider.emails.join(', ');
+  try {
+    await sendMail({
+      from: data.settings.mailFrom,
+      to,
+      subject: subjectFor(data.settings, week),
+      text: data.settings.mailBody,
+      attachments: [{ filename: pdfFileName(order, week), content: pdf, contentType: 'application/pdf' }],
+    });
+  } catch (e) {
+    console.error('Error enviant correu:', e);
+    throw fail(502, `No s'ha pogut enviar el correu: ${e.message}`);
+  }
+  await db.markSent(week.id, order.provider.id, 'correu', to);
+  res.json({ ok: true, to });
 }));
 
-app.post('/api/weeks/:week/orders/:providerId/mark-sent', wrap((req, res) => {
-  const week = getWeek(req.params.week);
-  findProvider(req.params.providerId);
-  if (req.body.undo) delete week.sent[req.params.providerId];
-  else week.sent[req.params.providerId] = { at: new Date().toISOString(), via: String(req.body.via || 'manual') };
-  save();
-  res.json(week.sent[req.params.providerId] || null);
+app.post('/api/weeks/:week/orders/:providerId/mark-sent', wrap(async (req, res) => {
+  const wid = checkWeek(req.params.week);
+  if (req.body.undo) await db.unmarkSent(wid, req.params.providerId);
+  else await db.markSent(wid, req.params.providerId, String(req.body.via || 'manual'));
+  res.json({ ok: true });
 }));
 
-// En reiniciar, cap lectura queda "penjada"
-for (const w of Object.values(getDb().weeks)) {
-  for (const s of Object.values(w.submissions)) if (s.reading) { s.reading = false; s.readError = 'Lectura interrompuda. Torna-ho a provar.'; }
-}
-save();
-
+// ---------- Arrencada ----------
+await db.initDb();
+await initStorage();
 const PORT = Number(process.env.PORT || 3000);
 app.listen(PORT, () => {
   console.log(`Comandes en marxa a http://localhost:${PORT}`);
+  console.log(`  Base de dades:         connectada`);
+  console.log(`  Fotos:                 ${usingSupabaseStorage() ? 'Supabase Storage' : 'carpeta local (SUPABASE_URL no configurat)'}`);
   console.log(`  Lectura de fotos (IA): ${ocrAvailable() ? 'activada' : 'NO configurada (ANTHROPIC_API_KEY)'}`);
   console.log(`  Enviament de correu:   ${mailAvailable() ? 'activat' : 'NO configurat (SMTP_*)'}`);
 });

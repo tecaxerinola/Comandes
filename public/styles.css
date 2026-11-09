@@ -223,3 +223,7 @@ pre.wtext { white-space: pre-wrap; background: var(--gray-bg); padding: 10px; bo
   .col-note { display: none; }
 }
 details.prov summary > span:last-child { flex: none; display: inline-flex; }
+.prod-chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 320px; overflow: auto; }
+.prod-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--gray-bg); border-radius: 6px; padding: 3px 4px 3px 9px; font-size: 12px; }
+.prod-chip button { border: 0; background: transparent; cursor: pointer; color: var(--muted); padding: 0 4px; font-size: 12px; }
+.prod-chip button:hover { color: var(--red); }

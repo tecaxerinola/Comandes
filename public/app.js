@@ -1,6 +1,7 @@
 // ===================== Utilitats =====================
 const $ = (sel, root = document) => root.querySelector(sel);
 const app = $('#app');
+const setApp = (...c) => app.replaceChildren(...c.flat(Infinity).filter((x) => x !== null && x !== undefined && x !== false));
 
 function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
@@ -229,7 +230,7 @@ function renderSchools() {
         `${photos.length} foto${photos.length === 1 ? '' : 's'} · ${lines} ${lines === 1 ? 'línia' : 'línies'}`,
         low ? h('span', { class: 'tag warn' }, `${low} a revisar`) : null,
         s?.readError ? h('span', { class: 'tag warn' }, 'error de lectura') : null),
-      photos.length ? h('div', { class: 'thumbs' }, photos.slice(0, 6).map((p) => h('img', { src: '/uploads/' + p.file, alt: '' }))) : null,
+      photos.length ? h('div', { class: 'thumbs' }, photos.slice(0, 6).map((p) => h('img', { src: p.url, alt: '' }))) : null,
       h('div', { class: 'dropzone', onclick: () => pickFiles(school.id) }, '📷 Arrossega o clica per pujar fotos'),
       h('div', { class: 'card-actions' },
         h('a', { class: 'btn ' + (s?.status === 'review' ? 'primary' : ''), href: `#escola/${school.id}` },
@@ -246,7 +247,7 @@ function renderSchools() {
     return card;
   });
 
-  app.replaceChildren(
+  setApp(
     h('h1', {}, 'Comandes rebudes'),
     h('p', { class: 'sub' }, 'Arrossega les fotos de WhatsApp a la targeta de cada escola. La comanda es llegeix sola; després revisa-la i confirma-la.'),
     !state.config.ocr ? h('div', { class: 'alert warn' }, 'La lectura automàtica de fotos no està configurada (falta la clau ANTHROPIC_API_KEY). Pots pujar les fotos i entrar les línies a mà.') : null,
@@ -260,6 +261,7 @@ function renderSchools() {
 
 // ===================== Vista 1b: Revisió d'una escola =====================
 let saveTimer = null;
+let saveChain = Promise.resolve();
 let photoIdx = 0;
 let rotation = {};
 
@@ -276,7 +278,7 @@ function renderSchool() {
   const cur = s.photos[photoIdx];
   const stage = h('div', { class: 'stage' },
     cur ? h('img', {
-      src: '/uploads/' + cur.file,
+      src: cur.url,
       style: `transform: rotate(${rotation[cur.id] || 0}deg)`,
       onclick: () => stage.classList.toggle('zoom'),
     }) : h('div', { class: 'empty-photo' }, 'Encara no hi ha fotos.', h('br'), 'Arrossega-les aquí o clica "Afegir fotos".'));
@@ -284,7 +286,7 @@ function renderSchool() {
     stage,
     h('div', { class: 'tools' },
       h('div', { class: 'thumbs' }, s.photos.map((p, i) =>
-        h('img', { src: '/uploads/' + p.file, class: i === photoIdx ? 'sel' : '', onclick: () => { photoIdx = i; renderSchool(); } }))),
+        h('img', { src: p.url, class: i === photoIdx ? 'sel' : '', onclick: () => { photoIdx = i; renderSchool(); } }))),
       h('span', { style: 'flex:1' }),
       cur ? h('button', { class: 'btn small', title: 'Girar', onclick: () => { rotation[cur.id] = ((rotation[cur.id] || 0) + 90) % 360; renderSchool(); } }, '⟳ Girar') : null,
       cur ? h('button', { class: 'btn small danger', onclick: async () => {
@@ -315,13 +317,20 @@ function renderSchool() {
   const persist = (status) => {
     clearTimeout(saveTimer);
     saveState.textContent = 'Desant…';
-    return api(`/api/weeks/${state.weekId}/schools/${school.id}`, {
-      method: 'PUT', json: { items: s.items, observations: s.observations, status },
-    }).then((d) => {
-      Object.assign(s, { status: d.status, updatedAt: d.updatedAt });
+    // Els desats van un darrere l'altre i porten la versió, per no esborrar línies llegides mentrestant
+    saveChain = saveChain.catch(() => {}).then(() => api(`/api/weeks/${state.weekId}/schools/${school.id}`, {
+      method: 'PUT', json: { items: s.items, observations: s.observations, status, version: s.version },
+    })).then((d) => {
+      Object.assign(s, { status: d.status, updatedAt: d.updatedAt, version: d.version });
       saveState.textContent = `Desat ${fmtDateTime(d.updatedAt)}`;
       return d;
-    }).catch((e) => { saveState.textContent = 'No desat!'; toast(e.message, true); throw e; });
+    }).catch(async (e) => {
+      saveState.textContent = 'No desat!';
+      toast(e.message, true);
+      if (/actualitzat mentrestant/.test(e.message)) { await loadState(); renderSchool(); }
+      throw e;
+    });
+    return saveChain;
   };
   const autosave = () => { clearTimeout(saveTimer); saveState.textContent = 'Canvis sense desar…'; saveTimer = setTimeout(() => persist(), 800); };
 
@@ -342,7 +351,18 @@ function renderSchool() {
     });
     const tr = h('tr', { class: it.confidence === 'baixa' ? 'low' : '', 'data-id': it.id },
       h('td', { class: 'col-prod' }, inp('product', { list: listId, placeholder: 'Producte' }),
-        it.aiNote ? h('div', { class: 'ainote' }, 'ℹ️ ', it.aiNote) : null),
+        it.aiNote ? h('div', { class: 'ainote' }, 'ℹ️ ', it.aiNote) : null,
+        p && it.product?.trim() && !p.products.includes(it.product.trim().toUpperCase())
+          ? h('div', { class: 'ainote' }, h('button', { class: 'btn small ghost', style: 'padding:2px 6px', onclick: async () => {
+            try {
+              const upd = await api(`/api/providers/${p.id}/products`, { json: { name: it.product } });
+              Object.assign(p, upd);
+              it.product = it.product.trim().toUpperCase();
+              it.inCatalog = true;
+              toast(`Afegit al catàleg de ${p.name}`);
+              autosave(); renderSchool();
+            } catch (e) { toast(e.message, true); }
+          } }, `+ Afegir "${it.product.trim().toUpperCase()}" als productes de ${p.name}`)) : null),
       h('td', { class: 'col-qty' }, inp('quantity', { placeholder: 'Quantitat' })),
       h('td', { class: 'col-day' }, inp('day', { placeholder: 'dd/mm' })),
       h('td', { class: 'col-note' }, inp('note', { placeholder: 'Nota pel proveïdor' })),
@@ -400,7 +420,7 @@ function renderSchool() {
   const schoolsNav = activeSchools();
   const idx = schoolsNav.findIndex((x) => x.id === school.id);
 
-  app.replaceChildren(
+  setApp(
     h('div', { class: 'row mb' },
       h('a', { class: 'btn', href: '#escoles' }, '← Escoles'),
       h('h1', { style: 'margin:0' }, school.name),
@@ -434,12 +454,12 @@ const norm = (x) => (x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCa
 
 // ===================== Vista 2: Enviar =====================
 async function renderSend() {
-  app.replaceChildren(h('p', { class: 'muted' }, 'Carregant…'));
+  setApp(h('p', { class: 'muted' }, 'Carregant…'));
   const data = await api(`/api/weeks/${state.weekId}/orders`);
   const { orders, notConfirmed, subject } = data;
 
   const doSendMail = async (o, btn) => {
-    if (!(await confirmBox('Enviar correu', `S'enviarà "${subject}" a ${o.provider.emails.join(', ')} amb el PDF de ${o.confirmedSchools} escola(es).`, 'Enviar'))) return false;
+    if (!(await confirmBox('Enviar correu', `S'enviarà "${subject}" des de ${data.from} a ${o.provider.emails.join(', ')} amb el PDF de ${o.confirmedSchools} escola(es).`, 'Enviar'))) return false;
     btn && (btn.disabled = true, btn.textContent = 'Enviant…');
     try {
       await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/send-mail`, { method: 'POST' });
@@ -462,17 +482,12 @@ async function renderSend() {
     const ready = o.confirmedSchools > 0;
     const actions = [];
     if (p.emails?.length) {
-      if (state.config.mail) {
-        const b = h('button', { class: 'btn primary', disabled: !ready, onclick: async () => { if (await doSendMail(o, b)) renderSend(); } }, '✉️ Enviar per correu');
-        actions.push(b);
-      } else {
-        actions.push(h('button', { class: 'btn primary', disabled: !ready, onclick: () => {
-          const a = h('a', { href: pdfUrl(o, true), download: '' }); a.click();
-          location.href = `mailto:${p.emails.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(state.data.settings.mailBody)}`;
-          toast('S\'ha descarregat el PDF: adjunta\'l al correu');
-          markSent(o, 'email');
-        } }, '✉️ Obrir correu + PDF'));
-      }
+      const b = h('button', {
+        class: 'btn primary', disabled: !ready || !state.config.mail,
+        title: state.config.mail ? '' : 'Cal configurar el correu al servidor',
+        onclick: async () => { if (await doSendMail(o, b)) renderSend(); },
+      }, o.sent ? '✉️ Tornar a enviar' : '✉️ Enviar per correu');
+      actions.push(b);
     }
     if (p.phone && p.channel !== 'phone') {
       actions.push(h('a', {
@@ -530,14 +545,14 @@ async function renderSend() {
     } }, `✉️ Enviar tots els correus pendents (${sendable.length})`)
     : null;
 
-  app.replaceChildren(
+  setApp(
     h('div', { class: 'row', style: 'justify-content:space-between' },
-      h('div', {}, h('h1', {}, 'Enviar comandes als proveïdors'), h('p', { class: 'sub' }, `Assumpte: "${subject}". Només hi surten els productes demanats, separats per escola.`)),
+      h('div', {}, h('h1', {}, 'Enviar comandes als proveïdors'), h('p', { class: 'sub' }, `Els correus surten de ${data.from} amb l'assumpte "${subject}". Només hi surten els productes demanats, separats per escola.`)),
       bulk),
     notConfirmed.length
       ? h('div', { class: 'alert warn' }, `Falten per confirmar: ${notConfirmed.join(', ')}. Pots enviar igualment, però aquestes escoles no hi sortiran.`)
       : h('div', { class: 'alert ok' }, 'Totes les escoles actives estan confirmades ✓'),
-    !state.config.mail ? h('div', { class: 'alert info' }, 'L\'enviament directe de correu no està configurat: el botó obrirà el teu programa de correu i descarregarà el PDF per adjuntar-lo.') : null,
+    !state.config.mail ? h('div', { class: 'alert error' }, 'L\'enviament de correu encara no està configurat al servidor (dades SMTP del compte ', data.from, '). Fins que no es configuri, els botons de correu estan desactivats.') : null,
     orders.length ? h('div', { class: 'order-grid' }, cards) : h('div', { class: 'card muted' }, 'Encara no hi ha cap comanda aquesta setmana.'),
   );
 }
@@ -550,6 +565,7 @@ function toggle(checked, onchange) {
     h('input', { type: 'checkbox', checked, onchange: (e) => onchange(e.target.checked) }), h('span'));
 }
 
+const openProviders = new Set();
 function renderConfig() {
   const { schools, providers, settings } = state.data;
 
@@ -578,8 +594,8 @@ function renderConfig() {
       phone: h('input', { type: 'tel', value: p?.phone || '', placeholder: '600000000' }),
       notes: h('input', { type: 'text', value: p?.notes || '' }),
       aliases: h('input', { type: 'text', value: (p?.aliases || []).join('; '), placeholder: 'Noms antics que surten al full imprès' }),
-      products: h('textarea', { rows: 8, value: (p?.products || []).join('\n') }),
     };
+    if (!p) f.products = h('textarea', { rows: 6, placeholder: 'Un producte per línia (també es poden afegir després)' });
     const saveBtn = h('button', { class: 'btn primary', onclick: async () => {
       const body = Object.fromEntries(Object.entries(f).map(([k, el]) => [k, el.value]));
       try {
@@ -596,11 +612,53 @@ function renderConfig() {
       h('label', { class: 'f' }, 'Telèfon / WhatsApp', f.phone),
       h('label', { class: 'f' }, 'Notes (persona de contacte, horaris…)', f.notes),
       h('label', { class: 'f' }, 'Altres noms al full dels cuiners', f.aliases),
-      h('label', { class: 'f' }, 'Productes (un per línia) — serveixen per reconèixer el que escriuen els cuiners', f.products),
-      h('div', { class: 'row', style: 'margin-top:10px' }, saveBtn));
+      f.products ? h('label', { class: 'f' }, 'Productes', f.products) : null,
+      h('div', { class: 'row', style: 'margin-top:10px' }, saveBtn),
+      p ? productsEditor(p) : null);
   };
 
-  const provRows = providers.map((p) => h('details', { class: 'prov' },
+  const productsEditor = (p) => {
+    const box = h('div', { class: 'products-box' });
+    const draw = () => {
+      const input = h('input', { type: 'text', placeholder: 'Nou producte (p. ex. ESPAGUETIS INTEGRALS 5KG)' });
+      const filter = h('input', { type: 'text', placeholder: 'Cercar…', style: 'max-width:160px' });
+      const chips = h('div', { class: 'prod-chips' });
+      const drawChips = () => chips.replaceChildren(...p.products
+        .filter((x) => !filter.value || norm(x).includes(norm(filter.value)))
+        .map((name) => h('span', { class: 'prod-chip' }, name,
+          h('button', { title: 'Treure producte', onclick: async () => {
+            if (!(await confirmBox('Treure producte', `Treure "${name}" de ${p.name}? (Les comandes ja fetes no canvien.)`, 'Treure'))) return;
+            Object.assign(p, await api(`/api/providers/${p.id}/products`, { method: 'DELETE', json: { name } }));
+            draw();
+          } }, '✕'))));
+      filter.oninput = drawChips;
+      const add = async () => {
+        if (!input.value.trim()) return;
+        try {
+          Object.assign(p, await api(`/api/providers/${p.id}/products`, { json: { names: input.value } }));
+          toast('Producte afegit');
+          draw();
+          box.querySelector('input').focus();
+        } catch (e) { toast(e.message, true); }
+      };
+      input.onkeydown = (e) => e.key === 'Enter' && add();
+      input.onpaste = (e) => {
+        const t = e.clipboardData.getData('text');
+        if (t.includes('\n')) { e.preventDefault(); input.value = t; add(); }
+      };
+      drawChips();
+      box.replaceChildren(
+        h('div', { class: 'row', style: 'justify-content:space-between;margin-top:16px' },
+          h('strong', {}, `Productes (${p.products.length})`), filter),
+        h('p', { class: 'muted', style: 'font-size:12px;margin:4px 0 8px' }, 'Serveixen perquè la lectura reconegui el que escriuen els cuiners. Pots enganxar una llista (un per línia).'),
+        h('div', { class: 'form-row', style: 'margin-top:0;margin-bottom:10px' }, input, h('button', { class: 'btn primary', onclick: add }, '+ Afegir')),
+        chips);
+    };
+    draw();
+    return box;
+  };
+
+  const provRows = providers.map((p) => h('details', { class: 'prov', open: openProviders.has(p.id), ontoggle: (e) => e.target.open ? openProviders.add(p.id) : openProviders.delete(p.id) },
     h('summary', {},
       h('span', { class: 'name', style: p.active ? '' : 'color:var(--muted);text-decoration:line-through' }, p.name),
       h('span', { class: 'muted', style: 'font-size:13px' }, `${channelLabel(p)} · ${p.products.length} productes`),
@@ -608,10 +666,11 @@ function renderConfig() {
         toggle(p.active, async (v) => { await api(`/api/providers/${p.id}`, { method: 'PATCH', json: { active: v } }); await reload(); }))),
     providerForm(p)));
 
+  const from = h('input', { type: 'email', value: settings.mailFrom, style: 'width:100%' });
   const subj = h('input', { type: 'text', value: settings.mailSubject, style: 'width:100%' });
   const body = h('textarea', { rows: 5, value: settings.mailBody });
 
-  app.replaceChildren(
+  setApp(
     h('h1', {}, 'Configuració'),
     h('p', { class: 'sub' }, 'Escoles (clients), proveïdors i text del correu.'),
     h('div', { class: 'cfg' },
@@ -622,16 +681,17 @@ function renderConfig() {
           h('div', { class: 'form-row' }, newSchool, h('button', { class: 'btn primary', onclick: addSchool }, 'Afegir'))),
         h('div', { class: 'card mb' },
           h('h2', {}, 'Correu als proveïdors'),
+          h('label', { class: 'f' }, 'Remitent (els correus surten sempre d\'aquesta adreça)', from),
           h('label', { class: 'f' }, 'Assumpte ({setmana} = número de setmana)', subj),
           h('label', { class: 'f' }, 'Text', body),
           h('div', { class: 'row', style: 'margin-top:10px' }, h('button', { class: 'btn primary', onclick: async () => {
-            await api('/api/settings', { method: 'PUT', json: { mailSubject: subj.value, mailBody: body.value } });
+            await api('/api/settings', { method: 'PUT', json: { mailFrom: from.value.trim(), mailSubject: subj.value, mailBody: body.value } }).catch((e) => { toast(e.message, true); throw e; });
             toast('Desat'); await reload();
           } }, 'Desar'))),
         h('div', { class: 'card mb' },
           h('h2', {}, 'Estat del sistema'),
           h('p', {}, state.config.ocr ? '✅ Lectura automàtica de fotos activada' : '⚠️ Lectura automàtica de fotos NO configurada (ANTHROPIC_API_KEY)'),
-          h('p', {}, state.config.mail ? '✅ Enviament de correu activat' : '⚠️ Enviament directe de correu NO configurat (SMTP). Es farà amb el teu programa de correu.'))),
+          h('p', {}, state.config.mail ? '✅ Enviament de correu activat' : '⚠️ Enviament de correu NO configurat al servidor (SMTP). Cal configurar-lo per poder enviar els correus.'))),
       h('div', { class: 'card' },
         h('div', { class: 'row', style: 'justify-content:space-between' }, h('h2', {}, 'Proveïdors'),
           h('button', { class: 'btn small', onclick: async () => {
@@ -660,4 +720,4 @@ $('#nextWeek').onclick = async () => { state.weekId = shiftWeek(state.weekId, 1)
   parseHash();
   await loadState();
   render();
-})().catch((e) => { app.replaceChildren(h('div', { class: 'alert error' }, 'Error carregant: ' + e.message)); });
+})().catch((e) => { setApp(h('div', { class: 'alert error' }, 'Error carregant: ' + e.message)); });
