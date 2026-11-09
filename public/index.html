@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ca">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comandes proveïdors</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🧾 Comandes</div>
+    <div class="week-picker">
+      <button class="icon-btn" id="prevWeek" title="Setmana anterior">‹</button>
+      <div id="weekLabel" class="week-label">…</div>
+      <button class="icon-btn" id="nextWeek" title="Setmana següent">›</button>
+    </div>
+    <nav class="tabs">
+      <a href="#escoles" data-tab="escoles">1. Escoles</a>
+      <a href="#enviar" data-tab="enviar">2. Enviar</a>
+      <a href="#config" data-tab="config">⚙︎ Configuració</a>
+    </nav>
+  </header>
+  <main id="app"></main>
+  <div id="dropOverlay" class="drop-overlay"><div>Deixa anar les fotos aquí</div></div>
+  <div id="toast" class="toast"></div>
+  <dialog id="dialog"></dialog>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

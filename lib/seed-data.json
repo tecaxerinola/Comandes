@@ -1,0 +1,586 @@
+{
+ "providers": [
+  {
+   "id": "riera",
+   "name": "RIERA",
+   "channel": "email",
+   "emails": [
+    "joaquim@comercialriera.com",
+    "riera.1@comercialriera.com",
+    "riera.2@comercialriera.com"
+   ],
+   "phone": "",
+   "aliases": [
+    "RIERA-A",
+    "RIERA-B",
+    "MASÓ",
+    "CAN MASÓ",
+    "PRODUCTE SEC I CONSERVES"
+   ],
+   "notes": "",
+   "active": true,
+   "products": [
+    "ALL GRANULAT 1KG",
+    "ALL I OLI",
+    "ARROS LLARG VAPORITZAT 5KG",
+    "BICARBONAT 1KG",
+    "BLAT DE MORO 3KG",
+    "CIGRONS 25KG",
+    "CIGRONS 5KG",
+    "ESPAGUETIS INTEGRALS",
+    "ESPAGUETIS S/GLUTEN",
+    "ESPIRALS 5KG",
+    "ESPIRALS INTEGRALS",
+    "ESPIRALS S/GLUTEN",
+    "FARINA 5KG",
+    "FIDEUS GRUIX S/FORAT 5KG",
+    "FIDEUS Nº2 5KG",
+    "FIDEUS S/GLUTEN",
+    "FORMATGE CADÍ RATLLAT",
+    "FORMATGE SEMI",
+    "FORMATGE SENSE LACTOSA",
+    "GALETS 5KG",
+    "HERBES PROVENÇALS 1KG",
+    "LLENTIES 25KG",
+    "LLENTIES 5KG",
+    "MACARRONS 5KG",
+    "MACARRONS INTEGRALS",
+    "MACARRONS S/GLUTEN",
+    "MACEDONIA",
+    "MAIONESA",
+    "MAIZENA 5KG",
+    "MONGET 25KG",
+    "MONGETA BLANCA 25KG",
+    "OLI CAPICUA 5L",
+    "OLI D’OLIVA 5L",
+    "OLI GIRASOL 25L",
+    "OLI GIRASOL 5L",
+    "OLI GIRASOL ALT OLEIC 25 LITRES",
+    "OLI OLIVA 1L",
+    "OLIVES NEGRES LAMINADES 3 KG",
+    "OLIVES VERDES LAMINADES 3 KG",
+    "PA RATLLAT",
+    "PINYA AMB ALMÍVAR",
+    "PISTONS 5KG",
+    "PRÈSSEC AMB ALMÍVAR",
+    "REMOLATXA",
+    "ROYAL 900GRS",
+    "SAL",
+    "SUCRE AVAINILLAT",
+    "SUCRE BLANC",
+    "TALLARINES",
+    "TOMATA FREGIDA 3KG",
+    "TOMATA TRITURADA 5KG",
+    "TONYINA",
+    "VI BLANC",
+    "VI NEGRE",
+    "VINAGRE",
+    "ARRÒS 5KG",
+    "ARRÒS LLARG VAPORITZAT 5KG",
+    "ESPAGUETIS 5KG",
+    "ESQUEIXADA BACALLA",
+    "FARIGOLA 1KG",
+    "FIDEU Nº2 5KG",
+    "FIDEUS GRUIXUT S/FORAT 5KG",
+    "JULIVERT FULLA 1KG",
+    "LLAÇETS DE COLORS 5KG",
+    "NOU MOSCADA 1KG",
+    "OLI D’OLIVA 1L",
+    "OLI DE GIRASOL 25L",
+    "OLI DE GIRASOL 5L",
+    "OLI DE GIRASOL ALT OLEIC 25L",
+    "OLIVES NEGRES LAMINADES 3KG",
+    "OLIVES VERDES LAMINADES 3KG",
+    "ORENGA FULLA 1KG",
+    "PA RATLLAT 5KG",
+    "PEBRE NEGRE 1KG",
+    "PEBRE VERMELL DOLÇ 1 KG",
+    "ROMANÍ 1KG",
+    "TALLARINES 5KG",
+    "TOMATA FREGIDA 3KG (6 UNITATS)",
+    "TOMATA TRITURADA 5KG (3 UNITATS)"
+   ]
+  },
+  {
+   "id": "tgt",
+   "name": "TGT",
+   "channel": "email",
+   "emails": [
+    "LDAComercial01@grupotgt.com"
+   ],
+   "phone": "",
+   "aliases": [],
+   "notes": "",
+   "active": true,
+   "products": [
+    "FORMATGE DE CABRA",
+    "MARGARINA",
+    "FORMATGE FRESC 1KG"
+   ]
+  },
+  {
+   "id": "provencal",
+   "name": "PROVENÇAL",
+   "channel": "email",
+   "emails": [
+    "granja.provensal@gmail.com"
+   ],
+   "phone": "",
+   "aliases": [],
+   "notes": "Eva",
+   "active": true,
+   "products": [
+    "CREMA DE XOCOLATA",
+    "FLAM D’OU",
+    "FLAM DE VAINILLA",
+    "IOGURT I. KIWI I TARONJA",
+    "IOGURT I. MANDARINA",
+    "IOGURT INDIVIDUAL DESNATAT",
+    "IOGURT INDIVIDUAL LLIMONA",
+    "IOGURT INDIVIDUAL MADUIXA",
+    "IOGURT INDIVIDUAL NATURAL",
+    "IOGURT INDIVIDUAL S/LACTOSA",
+    "IOGURT LLIMONA 3,5KG",
+    "IOGURT MADUIXA 3,5KG",
+    "IOGURT NATURAL 3,5KG"
+   ]
+  },
+  {
+   "id": "selvatana",
+   "name": "SELVATANA (FRISLLET)",
+   "channel": "email",
+   "emails": [
+    "frisllet@gmail.com"
+   ],
+   "phone": "",
+   "aliases": [
+    "SELVATANA",
+    "FRISLLET"
+   ],
+   "notes": "",
+   "active": true,
+   "products": [
+    "IOGURT ECO 3,5KG",
+    "IOGURT ECO 5KG",
+    "IOGURT ECO INDIVIDUAL"
+   ]
+  },
+  {
+   "id": "coubet",
+   "name": "CARNS COUBET",
+   "channel": "email",
+   "emails": [
+    "leonard@coubet.com"
+   ],
+   "phone": "",
+   "aliases": [
+    "CARNS ROURA",
+    "CUSINS",
+    "CARN"
+   ],
+   "notes": "",
+   "active": true,
+   "products": [
+    "ALETES DE POLLASTRE",
+    "BACON TALLAT X CARBONARA",
+    "BOTIFARRA",
+    "BOTIFARRA BLANCA TALLADA PRIMA",
+    "BOTIFARRA NEGRE TALLADA PRIMA",
+    "C. CONTRACUIXA POLLASTRE",
+    "CAP DE LLOM ENTER",
+    "CAP DE LLOM TALLAT X FIDEUS",
+    "CAP DE LLOM TALLAT X GUISAR",
+    "CAP DE LLOM TALLAT X PLANXA",
+    "CARCASSES DE POLLASTRE",
+    "CARN PICADA MIXTA",
+    "CARN PICADA POLLASTRE",
+    "COSTELLÓ TALLAT X FIDEUS",
+    "ESCALOPA DE POLLASTRE",
+    "F. DE CONTRACUIXA DE GALL D’INDI",
+    "FETGE",
+    "FILET DE POBRE",
+    "GALL D’INDI TALLAT X GUISAR",
+    "GALTA DE PORC",
+    "HAMBURGUESA DE POLLASTRE",
+    "HAMBURGUESA DE VEDELLA ECO",
+    "HAMBURGUESA DE VEDELLA HALAL",
+    "HAMBURGUESA MIXTA",
+    "LLOM 2 COLORS TALLAT X PLANXA",
+    "MANDONGUILLES DE POLLASTRE",
+    "OSSOS BLANCS DE VEDELLA",
+    "OSSOS D’ESPINADA",
+    "OSSOS SALATS",
+    "PERNIL DOLÇ TALLAT X ENTREPÀ",
+    "PERNIL DOLÇ TALLAT X TRUITA",
+    "PERNIL SALAT TALLAT X ENTREPÀ",
+    "PERNILETS DE POLLASTRE",
+    "PEUS DE PORC",
+    "PIT DE POLLASTRE ENTER",
+    "PIT DE POLLASTRE FILETEJAT",
+    "POLLASTRE ENTER",
+    "QUARTS DE POLLASTRE",
+    "SALSITXES DE POLLASTRE",
+    "SALSITXES DE PORC",
+    "SECRET",
+    "VEDELLA X GUISAR",
+    "XORIÇ X GUISAR",
+    "VEDELLA X TRITURAR",
+    "LLOM CANYA",
+    "OSSOS DE PERNIL",
+    "PERNIL DE GALL D'INDI",
+    "RETALL PIT DE POLLASTRE",
+    "FRANKFURT",
+    "LLANGONISSA"
+   ]
+  },
+  {
+   "id": "videla",
+   "name": "PESCADOS VIDELA",
+   "channel": "email",
+   "emails": [
+    "juan.ruiz@rupovidela.com"
+   ],
+   "phone": "",
+   "aliases": [
+    "DEL MORAL",
+    "CONGELAT",
+    "P.VIDELA"
+   ],
+   "notes": "REVISAR EL MAIL: al document posava 'juan.ruizrupovidela.com' (sense @)",
+   "active": true,
+   "products": [
+    "BACALLÀ +1000 11KG",
+    "BOLETS VARIATS",
+    "BRÒQUIL VERD 10KG",
+    "BRUNYOLS DE BACALLÀ",
+    "CALAMAR PATAGONIC",
+    "CALAMARS ROMANA",
+    "CANELONS",
+    "CARBASSÓ 10KG",
+    "CEBA A DAUS 10KG",
+    "CREMA DE LLET 6L",
+    "CROQUETES BOLETS 2KG",
+    "CROQUETES DE BACALLÀ",
+    "CROQUETES DE CARBASSA 2KG",
+    "CROQUETES DE VERDURES 2KG",
+    "ENSALADILLA 10KG",
+    "ESCARXOFES",
+    "ESPINACS 10KG",
+    "FILET DE LLUÇ 5KG",
+    "FOGONER +1000 11KG",
+    "FORMATGE FRESC EL VENTERO",
+    "FORMATGE MIX RATLLAT",
+    "GALL DE SANT PERE 5KG",
+    "GAMBES Nº 2",
+    "LLIBRETS LLOM",
+    "MAIRE",
+    "MONGETA FINA 10KG",
+    "MONGETA TALLADA 10KG",
+    "MORRALLA",
+    "NATA LÍQUIDA",
+    "NUGETS",
+    "PA S/GLUTEN",
+    "PASTANAGA TALLADA 10KG",
+    "PATATES D'OLOT",
+    "PÈSOL 10KG",
+    "POTON",
+    "R.LLUÇ ARREBOSSADA 4KG",
+    "RABES EMPANADES",
+    "SALMÓ FILET +1000",
+    "SANT JACOBOS",
+    "SUPREMES DE BACALLÀ",
+    "VERDURAS ASADAS",
+    "XAMPINYÓ LAMINAT 10KG"
+   ]
+  },
+  {
+   "id": "semcal",
+   "name": "FRUITS SEMCAL",
+   "channel": "email",
+   "emails": [
+    "comercial@frutassemcal.com"
+   ],
+   "phone": "",
+   "aliases": [
+    "VIGAFRUIT",
+    "FRUITA I VERDURA"
+   ],
+   "notes": "",
+   "active": true,
+   "products": [
+    "ALBERCOC",
+    "ALBERGINIA",
+    "ALL",
+    "ALVOCAT",
+    "APIT",
+    "BANANA",
+    "BLEDES",
+    "CARBASSA",
+    "CARBASSO",
+    "CEBES 25KG",
+    "CLEMENTINA",
+    "COGOMBRE",
+    "COL",
+    "ENCIAM LLARG",
+    "ESPÀRRECS",
+    "JULIVERT",
+    "KIWI",
+    "LLIMONA",
+    "MANDARINA",
+    "MELO",
+    "MONIATO",
+    "NAPS",
+    "NECTARINA CAL 22",
+    "PASTANAGUES 5KG",
+    "PATATES 15KG",
+    "PEBROT VERD",
+    "PEBROT VERMELL",
+    "PERA",
+    "PERES",
+    "PINYA",
+    "PLATAN",
+    "POMA",
+    "PORRO",
+    "PRESSEC",
+    "PRUNES",
+    "RAIM BLANC",
+    "REMOLATXA",
+    "SINDRIA",
+    "TARONGES",
+    "TOMAQUET",
+    "TOMAQUET MADUR",
+    "TOMAQUET XUCAR"
+   ]
+  },
+  {
+   "id": "ambisist",
+   "name": "AMBISIST",
+   "channel": "email",
+   "emails": [
+    "creig@ambisist.com"
+   ],
+   "phone": "",
+   "aliases": [],
+   "notes": "",
+   "active": true,
+   "products": [
+    "ABRILLANTADOR MÀQUINA",
+    "BAIETES BLAVES MICROFIBRES",
+    "BAIETES GROGUES",
+    "BOSSES BASURA 85X80",
+    "BOSSES BASURA GRANS",
+    "BOSSES BASURA PETITES",
+    "COMPACK ASEPVIX",
+    "COMPACK DESENGREIXANT",
+    "COMPACK PLAC",
+    "COMPACK SUELOS",
+    "DESCALSIST",
+    "DETERGENT MÀQUINA",
+    "ESCOMBRES AMB PAL LLARG",
+    "FILM",
+    "FREGALLS SALVAUNGLES",
+    "FREGONES AMB PALS LLARGS",
+    "GUANTS BICOLOR",
+    "GUANTS DE LÁTEX",
+    "GUANTS DE VINIL",
+    "LLEXIU ALIMENTARI",
+    "MOPA",
+    "NANAS",
+    "PAPER D’ ALUMINI",
+    "PAPER EIXUGAMANS",
+    "PEDRA POMEZ",
+    "RENTAVAIXELLES MANUAL",
+    "SABÓ RENTAMANS",
+    "SAL RENTAVAIXELLES",
+    "TOVALLONS"
+   ]
+  },
+  {
+   "id": "carnsvila",
+   "name": "CARNS VILA",
+   "channel": "phone",
+   "emails": [],
+   "phone": "972210001",
+   "aliases": [],
+   "notes": "Trucar (Pau)",
+   "active": true,
+   "products": [
+    "CROQUETES DE POLLASTRE",
+    "HAMBURGUESES VEGETALS"
+   ]
+  },
+  {
+   "id": "westfalia",
+   "name": "WESTFALIA",
+   "channel": "whatsapp",
+   "emails": [],
+   "phone": "661465237",
+   "aliases": [],
+   "notes": "Sonia",
+   "active": true,
+   "products": [
+    "TIRES DE SOJA TEXTURITZADES"
+   ]
+  },
+  {
+   "id": "giropack",
+   "name": "GIROPACK",
+   "channel": "whatsapp",
+   "emails": [],
+   "phone": "619349411",
+   "aliases": [],
+   "notes": "Toni/Imma. Ho deixa tot a CUINA CENTRAL",
+   "active": true,
+   "products": [
+    "BOSSES DE MOSTRA TRANSPARENTS",
+    "POTS DE 0'5 KG",
+    "TAPES DE IOGURT",
+    "TAPES DELS POTS DE 0'5KG",
+    "TUPERS IOGURT",
+    "POTS DE 1KG",
+    "TAPES DELS POTS DE 1KG",
+    "SAFATES ALUMINI PETITES",
+    "SAFATES ALUMINI GRANS",
+    "SAFATES ALUMINI AMB TAPA",
+    "BOSSES NANSA",
+    "SAFATES POREXPAN (PS 199 315*234*45 BIO)"
+   ]
+  },
+  {
+   "id": "comergi",
+   "name": "COMERGI",
+   "channel": "whatsapp",
+   "emails": [],
+   "phone": "680658987",
+   "aliases": [],
+   "notes": "Alain. Comanda abans de les 13h. Ho deixa tot a CUINA CENTRAL",
+   "active": true,
+   "products": [
+    "PAPER FILM",
+    "LLEIXIU 5L",
+    "RENTAPLATS MANUAL (MISTOL)",
+    "BOSSES ORGÀNIQUES MITJANES",
+    "BOSSES ORGÀNIQUES GRANS",
+    "BAIETES GROGUES",
+    "COMPACK ASEPVIX",
+    "COMPACK SUELOS",
+    "DESCALSIFICADOR MÀQUINA",
+    "ANTICALÇ RENTAPLATS"
+   ]
+  },
+  {
+   "id": "girosat",
+   "name": "GIROSAT (RATIONAL)",
+   "channel": "whatsapp",
+   "emails": [],
+   "phone": "608165572",
+   "aliases": [
+    "GIROSAT",
+    "RATIONAL"
+   ],
+   "notes": "Celestino",
+   "active": true,
+   "products": [
+    "PASTILLES DETERGENT FORN",
+    "PASTILLES ABRILLANTADOR FORN"
+   ]
+  },
+  {
+   "id": "grosmercat",
+   "name": "GROS MERCAT",
+   "channel": "print",
+   "emails": [],
+   "phone": "",
+   "aliases": [],
+   "notes": "Imprimir (Albert)",
+   "active": true,
+   "products": [
+    "AIGËS PETITES",
+    "AIGÜES 8L",
+    "CREMA LLET S/LACTOSA",
+    "ESPIRALS INTEGRALS",
+    "FAJITAS",
+    "FARINA D’AMETLLA 400GR",
+    "GALETS SENSE GLUTEN",
+    "GELAT S/LACTOSA",
+    "GELAT S/PROT,VACA",
+    "GELATINA",
+    "IOGURT SOJA",
+    "KETCHUP",
+    "LLET",
+    "LLET S/LACTOSA",
+    "NATA LIQUIDA S/LACTOSA",
+    "NATXOS",
+    "PA RATLLAT SENSE GLUTEN",
+    "PATATES XIPS",
+    "PIZZA S/GLUTEN",
+    "POT NATILLA POLS",
+    "SALSA BBC",
+    "SÈMOLA D’ ARRÒS",
+    "SÈMOLA DE BLAT",
+    "SIROPE CHOCOLATE",
+    "SOBRE SAZONADOR",
+    "TABASCO",
+    "XOCOLATE DESFETA"
+   ]
+  }
+ ],
+ "schools": [
+  {
+   "name": "ÀGORA",
+   "active": true
+  },
+  {
+   "name": "DALMAU",
+   "active": true
+  },
+  {
+   "name": "AIXART",
+   "active": true
+  },
+  {
+   "name": "LLERS",
+   "active": true
+  },
+  {
+   "name": "CUINA CENTRAL",
+   "active": true
+  },
+  {
+   "name": "TAIALÀ",
+   "active": true
+  },
+  {
+   "name": "VILAFANT",
+   "active": true
+  },
+  {
+   "name": "LLADÓ",
+   "active": true
+  },
+  {
+   "name": "CASSIÀ COSTAL",
+   "active": true
+  },
+  {
+   "name": "VILADEMANY",
+   "active": false
+  },
+  {
+   "name": "ESCULAPI",
+   "active": false
+  },
+  {
+   "name": "ESCOLA PAU",
+   "active": false
+  },
+  {
+   "name": "SOL I VENT",
+   "active": false
+  },
+  {
+   "name": "AVINYONET",
+   "active": false
+  }
+ ]
+}
