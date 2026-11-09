@@ -24,6 +24,16 @@ Si alguna escola no està confirmada, l'app avisa i aquella escola no surt a la 
 **Configuració**: afegir escoles/clients i activar-les o inactivar-les; afegir i editar proveïdors (correus, telèfon,
 manera d'enviar, productes i "altres noms" que surten al full imprès); remitent i text del correu.
 
+## On està publicada
+
+- **App:** https://comandes-teca-i-xerinola.vercel.app (projecte `comandes` de l'equip *Teca i Xerinola* a Vercel, regió Frankfurt).
+  Es publica sola cada vegada que es puja un canvi a la branca de producció del repositori.
+- **Dades:** projecte de Supabase **FORMACIO**, dins de l'esquema propi `comandes` (usuari `comandes_app`, que només
+  pot treballar en aquest esquema). Les taules de FORMACIO no es toquen. Fotos al bucket privat `comandes-fotos`.
+- Variables a Vercel: `DATABASE_URL`, `DB_SCHEMA=comandes`, `SUPABASE_URL`, `SUPABASE_BUCKET`, `SMTP_USER`, `APP_PASSWORD`
+  (ja posades) i `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_PASS` (a afegir).
+  Després de canviar una variable cal tornar a publicar (Deployments → ⋯ → Redeploy).
+
 ## Publicar-la a Vercel (amb Supabase)
 
 L'app està preparada per a Vercel: la pàgina (`public/`) es publica com a web estàtica i tota l'API va en una
