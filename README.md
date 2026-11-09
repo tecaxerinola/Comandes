@@ -24,39 +24,53 @@ Si alguna escola no està confirmada, l'app avisa i aquella escola no surt a la 
 **Configuració**: afegir escoles/clients i activar-les o inactivar-les; afegir i editar proveïdors (correus, telèfon,
 manera d'enviar, productes i "altres noms" que surten al full imprès); remitent i text del correu.
 
-## Posar-la en marxa
+## Publicar-la a Vercel (amb Supabase)
 
-Cal [Node.js](https://nodejs.org) 20 o superior i un projecte de [Supabase](https://supabase.com).
+L'app està preparada per a Vercel: la pàgina (`public/`) es publica com a web estàtica i tota l'API va en una
+sola funció (`api/index.js`, configurada a `vercel.json`). Les dades i les fotos van a Supabase.
+
+1. **Supabase**: no cal crear res a mà. La primera vegada que s'obre l'app, es creen les taules
+   (`supabase/migrations/001_init.sql`), el bucket privat de fotos i es carreguen les escoles i els proveïdors
+   amb tots els productes. Només cal tenir les claus del projecte:
+   - Botó **Connect** → **Transaction pooler** → copia la cadena URI (port `6543`) i posa-hi la contrasenya de la base de dades → `DATABASE_URL`.
+   - **Project Settings → API** → *Project URL* → `SUPABASE_URL` i la clau **service_role** → `SUPABASE_SERVICE_ROLE_KEY` (secreta).
+2. **Vercel**: *Add New → Project* → importa el repositori de GitHub. No cal canviar res de la configuració
+   (ja ve a `vercel.json`: sense build i amb la carpeta `public`).
+3. A **Settings → Environment Variables** afegeix:
+
+   | Variable | Valor |
+   |---|---|
+   | `DATABASE_URL` | Cadena del *Transaction pooler* de Supabase |
+   | `SUPABASE_URL` | URL del projecte de Supabase |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Clau *service_role* de Supabase |
+   | `APP_PASSWORD` | Contrasenya per entrar a l'app (**obligatòria**, l'app és a internet) |
+   | `ANTHROPIC_API_KEY` | Clau de console.anthropic.com per llegir les fotos |
+   | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Compte de correu `jordi@tecaxerinola.com` (Google Workspace: `smtp.gmail.com`, `465` i una *contrasenya d'aplicació*) |
+   | `MAIL_CC` | (Opcional) còpia de tots els correus enviats |
+
+4. **Deploy**. Obre l'adreça que dona Vercel, entra amb la contrasenya i ja està.
+
+Notes:
+- La lectura d'una foto pot trigar fins a un minut o dos: la funció té un límit de 300 s (`maxDuration` a `vercel.json`).
+  Si el pla de Vercel no ho permet, baixa aquest valor a `60`.
+- Les fotos es pugen d'una en una (Vercel limita cada petició a uns 4,5 MB) i es redueixen al navegador abans de pujar-les.
+- Vercel publica la branca principal del repositori. Si aquests canvis són en una altra branca, cal fusionar-la abans.
+
+## En local (opcional)
+
+Cal [Node.js](https://nodejs.org) 22 i les mateixes variables en un fitxer `.env` (vegeu `.env.example`):
 
 ```bash
 npm install
-cp .env.example .env     # i omple les claus (vegeu a sota)
 npm start                # http://localhost:3000
 ```
 
-O amb Docker:
+## Històric
 
-```bash
-docker build -t comandes .
-docker run -d -p 3000:3000 --env-file .env comandes
-```
-
-En arrencar, l'app crea sola les taules a Supabase (fitxer `supabase/migrations/001_init.sql`), el bucket privat
-de fotos i, la primera vegada, carrega les escoles i els proveïdors amb tots els productes del full `SETMANA46.xlsx`.
-
-### Claus que cal configurar (`.env`)
-
-| Variable | D'on surt / per a què serveix |
-|---|---|
-| `DATABASE_URL` | Supabase → botó **Connect** → *Session pooler* (URI), amb la contrasenya de la base de dades. |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase → *Project Settings* → *API*. Serveix per guardar les fotos a Storage. **La service role key és secreta**: només va al servidor. |
-| `ANTHROPIC_API_KEY` | Lectura automàtica de les fotos (Claude). Es crea a console.anthropic.com. Sense clau, les línies s'entren a mà. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Compte de correu **jordi@tecaxerinola.com**, que és des d'on surten tots els correus. Amb Google Workspace: `smtp.gmail.com`, port `465` i una *contrasenya d'aplicació*. |
-| `MAIL_CC` | (Opcional) Còpia de tots els correus enviats. |
-| `APP_PASSWORD` | Contrasenya per entrar a l'app. |
-
-Els correus s'envien directament des de l'app (no s'obre cap programa de correu). El remitent es pot canviar
-a Configuració → Correu als proveïdors (per defecte `jordi@tecaxerinola.com`).
+La pestanya **📅 Històric** mostra totes les comandes agrupades per **any → mes → setmana**, amb el nombre d'escoles,
+línies, proveïdors i comandes enviades. Es pot filtrar per escola i per proveïdor; obrint una setmana es veu què es va
+demanar a cada proveïdor (amb el PDF) i el botó *Obrir setmana* hi porta per consultar-la o modificar-la.
+(Una setmana compta al mes del seu dijous, com la numeració oficial de setmanes.)
 
 ## Productes
 
@@ -82,7 +96,8 @@ La llista de productes ajuda la lectura automàtica a reconèixer el que escriue
 
 ## Estructura del codi
 
-- `server.js` — servidor web (Express) i API.
+- `lib/app.js` — API i servidor web (Express). `api/index.js` l'exposa a Vercel i `server.js` l'arrenca en local.
+- `vercel.json` — configuració de Vercel.
 - `lib/ocr.js` — lectura de les fotos amb Claude (visió + sortida JSON estructurada).
 - `lib/orders.js` — agrupació per proveïdor, PDF i text de WhatsApp.
 - `lib/mail.js` — enviament per SMTP.

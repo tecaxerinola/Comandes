@@ -30,8 +30,32 @@ async function api(url, opts = {}) {
   }
   const res = await fetch(url, init);
   const data = res.headers.get('content-type')?.includes('json') ? await res.json() : null;
+  if (res.status === 401 && data?.login) { showLogin(); throw new Error('Cal iniciar sessió'); }
   if (!res.ok) throw new Error(data?.error || `Error ${res.status}`);
   return data;
+}
+
+// ===================== Inici de sessió =====================
+function showLogin() {
+  if ($('#login')) return;
+  const input = h('input', { type: 'password', placeholder: 'Contrasenya', autocomplete: 'current-password', style: 'width:100%' });
+  const err = h('div', { class: 'alert error', style: 'display:none;margin-top:10px' });
+  const go = async () => {
+    const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: input.value }) });
+    if (res.ok) return location.reload();
+    err.textContent = 'Contrasenya incorrecta';
+    err.style.display = 'block';
+    input.select();
+  };
+  input.onkeydown = (e) => e.key === 'Enter' && go();
+  document.body.append(h('div', { id: 'login', class: 'login' },
+    h('div', { class: 'card login-card' },
+      h('img', { src: 'logo.jpg', alt: 'Teca & Xerinola', style: 'width:100%;max-width:280px;display:block;margin:0 auto 16px' }),
+      h('h1', { style: 'text-align:center' }, 'Comandes'),
+      h('p', { class: 'sub', style: 'text-align:center' }, 'Introdueix la contrasenya per entrar'),
+      input, err,
+      h('button', { class: 'btn primary', style: 'width:100%;margin-top:12px', onclick: go }, 'Entrar'))));
+  input.focus();
 }
 
 let toastTimer;
@@ -119,7 +143,7 @@ const activeSchools = () => state.data.schools.filter((s) => s.active);
 // ===================== Router =====================
 function parseHash() {
   const [tab, id] = location.hash.replace('#', '').split('/');
-  state.tab = ['escoles', 'escola', 'enviar', 'config'].includes(tab) ? tab : 'escoles';
+  state.tab = ['escoles', 'escola', 'enviar', 'historic', 'config'].includes(tab) ? tab : 'escoles';
   state.schoolId = id || null;
 }
 window.addEventListener('hashchange', () => { parseHash(); render(); });
@@ -130,6 +154,7 @@ function render() {
   if (state.tab === 'escola' && state.schoolId) return renderSchool();
   if (state.tab === 'enviar') return renderSend();
   if (state.tab === 'config') return renderConfig();
+  if (state.tab === 'historic') return renderHistory();
   return renderSchools();
 }
 
@@ -138,14 +163,14 @@ async function resizeImage(file) {
   // Redueix les fotos grans al navegador (pujada més ràpida i dins dels límits de la IA)
   try {
     const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
-    const max = 2400;
+    const max = 2200;
     const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
-    if (scale === 1 && file.size < 3.5e6 && /jpe?g|png|webp/.test(file.type)) return file;
+    if (scale === 1 && file.size < 3e6 && /jpe?g|png|webp/.test(file.type)) return file;
     const c = document.createElement('canvas');
     c.width = Math.round(bmp.width * scale);
     c.height = Math.round(bmp.height * scale);
     c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.88));
+    const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
     return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
   } catch {
     return file;
@@ -156,19 +181,35 @@ async function uploadPhotos(schoolId, files) {
   files = [...files].filter((f) => f.type.startsWith('image/'));
   if (!files.length) return toast('Només es poden pujar imatges', true);
   const school = state.data.schools.find((s) => s.id === schoolId);
-  toast(`Pujant ${files.length} foto${files.length > 1 ? 's' : ''} de ${school.name}…`);
-  const fd = new FormData();
-  for (const f of await Promise.all(files.map(resizeImage))) fd.append('photos', f, f.name);
+  const weekId = state.weekId;
+  const before = new Set((sub(schoolId)?.photos || []).map((p) => p.id));
   try {
-    const res = await fetch(`/api/weeks/${state.weekId}/schools/${schoolId}/photos`, { method: 'POST', body: fd });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-    state.data.week.submissions[schoolId] = data;
-    toast(state.config.ocr ? `Fotos pujades. Llegint la comanda de ${school.name}…` : 'Fotos pujades');
+    // Una foto per petició (Vercel limita la mida de cada petició a ~4,5 MB)
+    let data = null;
+    for (const [i, file] of files.entries()) {
+      toast(`Pujant foto ${i + 1} de ${files.length} (${school.name})…`);
+      const f = await resizeImage(file);
+      const fd = new FormData();
+      fd.append('photos', f, f.name);
+      const res = await fetch(`/api/weeks/${weekId}/schools/${schoolId}/photos?read=0`, { method: 'POST', body: fd });
+      data = await res.json().catch(() => ({ error: `Error ${res.status}` }));
+      if (res.status === 401) { showLogin(); return; }
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+    }
+    if (state.config.ocr) {
+      const photoIds = data.photos.map((p) => p.id).filter((id) => !before.has(id));
+      data = await api(`/api/weeks/${weekId}/schools/${schoolId}/read`, { json: { photoIds } });
+      toast(`Fotos pujades. Llegint la comanda de ${school.name}…`);
+    } else {
+      toast('Fotos pujades');
+    }
+    if (weekId === state.weekId) state.data.week.submissions[schoolId] = data;
     render();
     schedulePoll();
   } catch (e) {
     toast(e.message, true);
+    await loadState().catch(() => {});
+    render();
   }
 }
 
@@ -700,6 +741,112 @@ function renderConfig() {
           } }, '+ Nou proveïdor')),
         h('p', { class: 'muted', style: 'font-size:13px' }, 'Clica un proveïdor per editar-lo. Un proveïdor inactiu no surt a la lectura ni a l\'enviament.'),
         provRows)),
+  );
+}
+
+// ===================== Vista 4: Històric =====================
+const MONTHS = ['Gener', 'Febrer', 'Març', 'Abril', 'Maig', 'Juny', 'Juliol', 'Agost', 'Setembre', 'Octubre', 'Novembre', 'Desembre'];
+const histFilter = { school: '', provider: '' };
+const histOpen = new Set();
+
+// Una setmana compta al mes (i any) del seu dijous, com fa la numeració ISO
+function weekMonth(w) {
+  const d = new Date(w.from + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + 3);
+  return { year: d.getUTCFullYear(), month: d.getUTCMonth() };
+}
+
+async function openWeek(weekId, tab = 'escoles') {
+  state.weekId = weekId;
+  try { sessionStorage.setItem('week', weekId); } catch {}
+  await loadState();
+  if (location.hash === '#' + tab) render(); else location.hash = '#' + tab;
+}
+
+async function renderHistory() {
+  setApp(h('p', { class: 'muted' }, 'Carregant l\'històric…'));
+  const qs = new URLSearchParams(Object.entries(histFilter).filter(([, v]) => v)).toString();
+  const weeks = await api('/api/history' + (qs ? '?' + qs : ''));
+
+  const schoolSel = h('select', { class: 'input', onchange: (e) => { histFilter.school = e.target.value; renderHistory(); } },
+    h('option', { value: '' }, 'Totes les escoles'),
+    state.data.schools.map((s) => h('option', { value: s.id, selected: histFilter.school === s.id }, s.name + (s.active ? '' : ' (inactiva)'))));
+  const provSel = h('select', { class: 'input', onchange: (e) => { histFilter.provider = e.target.value; renderHistory(); } },
+    h('option', { value: '' }, 'Tots els proveïdors'),
+    state.data.providers.map((p) => h('option', { value: p.id, selected: histFilter.provider === p.id }, p.name)));
+
+  // Agrupar: any -> mes -> setmanes
+  const years = new Map();
+  for (const w of weeks) {
+    const { year, month } = weekMonth(w);
+    if (!years.has(year)) years.set(year, new Map());
+    const months = years.get(year);
+    if (!months.has(month)) months.set(month, []);
+    months.get(month).push(w);
+  }
+  const sum = (list, k) => list.reduce((n, w) => n + w[k], 0);
+  const now = new Date();
+
+  const weekRow = (w) => {
+    const detail = h('div', { class: 'hist-detail' });
+    const key = 'w:' + w.weekId;
+    const loadDetail = async () => {
+      detail.replaceChildren(h('p', { class: 'muted' }, 'Carregant…'));
+      const d = await api(`/api/weeks/${w.weekId}/orders`);
+      const orders = d.orders.filter((o) => !histFilter.provider || o.provider.id === histFilter.provider);
+      detail.replaceChildren(...(orders.length ? orders.map((o) => {
+        const schools = o.schools.filter((s) => !histFilter.school || s.id === histFilter.school);
+        if (!schools.length) return null;
+        return h('div', { class: 'hist-prov' },
+          h('div', { class: 'row' },
+            h('strong', {}, o.provider.name),
+            o.sent ? h('span', { class: 'badge confirmed' }, `Enviat ${fmtDateTime(o.sent.at)}`) : h('span', { class: 'badge pending' }, 'No enviat'),
+            o.confirmedSchools ? h('a', { class: 'btn small ghost', target: '_blank', href: `/api/weeks/${w.weekId}/orders/${o.provider.id}/pdf` }, '📄 PDF') : null),
+          schools.map((s) => h('div', { class: 'hist-school' },
+            h('span', { class: 'hist-sname' }, s.name, s.status !== 'confirmed' ? h('span', { class: 'tag warn' }, 'sense confirmar') : null),
+            h('span', {}, s.items.map((it) => `${it.product}: ${it.quantity || '-'}${it.day ? ` (${it.day})` : ''}`).join(' · ')))));
+      }).filter(Boolean) : [h('p', { class: 'muted' }, 'Cap comanda.')]));
+    };
+    const det = h('details', { class: 'hist-week', open: histOpen.has(key), ontoggle: (e) => {
+      if (e.target.open) { histOpen.add(key); loadDetail(); } else histOpen.delete(key);
+    } },
+      h('summary', {},
+        h('span', { class: 'hist-wname' }, `Setmana ${w.week}`, h('small', {}, `${fmtDate(w.from)} – ${fmtDate(w.to)}`)),
+        h('span', { class: 'hist-stats' },
+          h('span', { title: 'Escoles amb comanda' }, `🏫 ${w.schools}`, w.confirmed < w.schools ? h('small', { class: 'muted' }, ` (${w.confirmed} conf.)`) : null),
+          h('span', { title: 'Línies demanades' }, `🧾 ${w.lines}`),
+          h('span', { title: 'Proveïdors' }, `🚚 ${w.providers}`),
+          h('span', { title: 'Comandes enviades', class: w.sent ? 'ok' : '' }, `✉️ ${w.sent}`)),
+        h('button', { class: 'btn small', onclick: (e) => { e.preventDefault(); openWeek(w.weekId); } }, 'Obrir setmana')),
+      detail);
+    if (histOpen.has(key)) loadDetail();
+    return det;
+  };
+
+  const content = [...years.entries()].map(([year, months]) => {
+    const all = [...months.values()].flat();
+    return h('section', { class: 'card mb hist-year' },
+      h('div', { class: 'row', style: 'justify-content:space-between' },
+        h('h2', { class: 'hist-yname' }, String(year)),
+        h('span', { class: 'muted' }, `${all.length} setmanes · ${sum(all, 'lines')} línies · ${sum(all, 'sent')} comandes enviades`)),
+      [...months.entries()].map(([month, list]) => {
+        const key = `m:${year}-${month}`;
+        const isCurrent = year === now.getFullYear() && month === now.getMonth();
+        const open = histOpen.has(key) || (isCurrent && !histOpen.has('closed:' + key));
+        return h('details', { class: 'hist-month', open, ontoggle: (e) => {
+          if (e.target.open) { histOpen.add(key); histOpen.delete('closed:' + key); } else { histOpen.delete(key); histOpen.add('closed:' + key); }
+        } },
+          h('summary', {}, h('strong', {}, MONTHS[month]),
+            h('span', { class: 'muted' }, `${list.length} setman${list.length === 1 ? 'a' : 'es'} · ${sum(list, 'lines')} línies`)),
+          list.map(weekRow));
+      }));
+  });
+
+  setApp(
+    h('h1', {}, 'Històric de comandes'),
+    h('p', { class: 'sub' }, 'Totes les comandes per any, mes i setmana. Obre una setmana per veure què es va demanar a cada proveïdor.'),
+    h('div', { class: 'row mb' }, schoolSel, provSel),
+    content.length ? content : h('div', { class: 'card muted' }, 'Encara no hi ha cap comanda guardada' + (qs ? ' amb aquest filtre.' : '.')),
   );
 }
 
