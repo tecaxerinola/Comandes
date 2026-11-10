@@ -229,8 +229,19 @@ async function askSchoolAndUpload(files) {
 
 // Arrossegar fotos a qualquna part de la pàgina
 let dragDepth = 0;
+// Arrossegar una imatge que ja és a la pàgina (una foto, el logo…) no és pujar una foto nova:
+// el navegador hi posa la imatge com si fos un fitxer i es pujaria repetida.
+let internalDrag = false;
+document.addEventListener('dragstart', () => { internalDrag = true; });
+document.addEventListener('dragend', () => { internalDrag = false; });
+window.addEventListener('drop', (e) => {
+  if (!internalDrag) return;
+  internalDrag = false;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+}, true);
 window.addEventListener('dragenter', (e) => {
-  if (![...e.dataTransfer.types].includes('Files')) return;
+  if (internalDrag || ![...e.dataTransfer.types].includes('Files')) return;
   dragDepth++;
   $('#dropOverlay').classList.add('show');
 });
