@@ -31,7 +31,7 @@ manera d'enviar, productes i "altres noms" que surten al full imprès); remitent
 - **Dades:** projecte de Supabase **FORMACIO**, dins de l'esquema propi `comandes` (usuari `comandes_app`, que només
   pot treballar en aquest esquema). Les taules de FORMACIO no es toquen. Fotos al bucket privat `comandes-fotos`.
 - Variables a Vercel: `DATABASE_URL`, `DB_SCHEMA=comandes`, `SUPABASE_URL`, `SUPABASE_BUCKET`, `SMTP_USER`, `APP_PASSWORD`
-  (ja posades) i `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_PASS` (a afegir).
+  `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY` (ja posades) i, per al correu de Microsoft 365, `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`.
   Després de canviar una variable cal tornar a publicar (Deployments → ⋯ → Redeploy).
 
 ## Publicar-la a Vercel (amb Supabase)
@@ -81,6 +81,18 @@ La pestanya **📅 Històric** mostra totes les comandes agrupades per **any →
 línies, proveïdors i comandes enviades. Es pot filtrar per escola i per proveïdor; obrint una setmana es veu què es va
 demanar a cada proveïdor (amb el PDF) i el botó *Obrir setmana* hi porta per consultar-la o modificar-la.
 (Una setmana compta al mes del seu dijous, com la numeració oficial de setmanes.)
+
+## Correu amb Microsoft 365 (Outlook)
+
+Microsoft ja no permet enviar amb contrasenyes d'aplicació per SMTP, així que l'app envia a través de Microsoft Graph:
+
+1. entra.microsoft.com → **Identitat → Aplicacions → Registres d'aplicacions → Nou registre** → nom `Comandes` → Registrar.
+2. **Permisos d'API → Afegir un permís → Microsoft Graph → Permisos d'aplicació → Mail.Send** → Afegir.
+   Després **Concedir consentiment d'administrador**.
+3. **Certificats i secrets → Nou secret de client** → copiar el *Valor*.
+4. A Vercel: `MS_TENANT_ID` (Identificador del directori), `MS_CLIENT_ID` (Identificador de l'aplicació) i `MS_CLIENT_SECRET` (el valor del secret).
+
+Els correus surten de `jordi@tecaxerinola.com` i queden a la seva carpeta d'Elements enviats.
 
 ## Productes
 
