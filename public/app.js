@@ -177,9 +177,16 @@ async function resizeImage(file) {
   }
 }
 
+const isPdf = (f) => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '');
+const isUpload = (f) => f.type.startsWith('image/') || isPdf(f);
+// Vercel no accepta peticions de més de ~4,5 MB; les fotos es redueixen, però els PDF no
+const MAX_PDF = 4.3 * 1024 * 1024;
+
 async function uploadPhotos(schoolId, files) {
-  files = [...files].filter((f) => f.type.startsWith('image/'));
-  if (!files.length) return toast('Només es poden pujar imatges', true);
+  files = [...files].filter(isUpload);
+  if (!files.length) return toast('Només es poden pujar fotos o PDF', true);
+  const big = files.find((f) => isPdf(f) && f.size > MAX_PDF);
+  if (big) return toast(`El PDF "${big.name}" és massa gran (${(big.size / 1048576).toFixed(1)} MB). El màxim és 4 MB: envia'n una foto o un PDF més petit.`, true);
   const school = state.data.schools.find((s) => s.id === schoolId);
   const weekId = state.weekId;
   const before = new Set((sub(schoolId)?.photos || []).map((p) => p.id));
@@ -187,8 +194,8 @@ async function uploadPhotos(schoolId, files) {
     // Una foto per petició (Vercel limita la mida de cada petició a ~4,5 MB)
     let data = null;
     for (const [i, file] of files.entries()) {
-      toast(`Pujant foto ${i + 1} de ${files.length} (${school.name})…`);
-      const f = await resizeImage(file);
+      toast(`Pujant ${isPdf(file) ? 'PDF' : 'foto'} ${i + 1} de ${files.length} (${school.name})…`);
+      const f = isPdf(file) ? new File([file], file.name, { type: 'application/pdf' }) : await resizeImage(file);
       const fd = new FormData();
       fd.append('photos', f, f.name);
       const res = await fetch(`/api/weeks/${weekId}/schools/${schoolId}/photos?read=0`, { method: 'POST', body: fd });
@@ -214,7 +221,7 @@ async function uploadPhotos(schoolId, files) {
 }
 
 function pickFiles(schoolId) {
-  const input = h('input', { type: 'file', accept: 'image/*', multiple: true });
+  const input = h('input', { type: 'file', accept: 'image/*,application/pdf,.pdf', multiple: true });
   input.onchange = () => uploadPhotos(schoolId, input.files);
   input.click();
 }
@@ -259,11 +266,17 @@ window.addEventListener('drop', (e) => {
 });
 // Enganxar (Ctrl+V) una imatge
 window.addEventListener('paste', (e) => {
-  const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
+  const files = [...(e.clipboardData?.files || [])].filter(isUpload);
   if (!files.length) return;
   if (state.tab === 'escola' && state.schoolId) uploadPhotos(state.schoolId, files);
   else askSchoolAndUpload(files);
 });
+
+// Miniatura d'una foto o d'un PDF
+const photoIsPdf = (p) => p.mediaType === 'application/pdf';
+const thumb = (p, attrs = {}) => (photoIsPdf(p)
+  ? h('span', { class: 'pdf-thumb ' + (attrs.class || ''), title: 'PDF', onclick: attrs.onclick }, '📄', h('small', {}, 'PDF'))
+  : h('img', { src: p.url, alt: '', ...attrs }));
 
 // ===================== Vista 1: Escoles =====================
 function renderSchools() {
@@ -282,8 +295,8 @@ function renderSchools() {
         `${photos.length} foto${photos.length === 1 ? '' : 's'} · ${lines} ${lines === 1 ? 'línia' : 'línies'}`,
         low ? h('span', { class: 'tag warn' }, `${low} a revisar`) : null,
         s?.readError ? h('span', { class: 'tag warn' }, 'error de lectura') : null),
-      photos.length ? h('div', { class: 'thumbs' }, photos.slice(0, 6).map((p) => h('img', { src: p.url, alt: '' }))) : null,
-      h('div', { class: 'dropzone', onclick: () => pickFiles(school.id) }, '📷 Arrossega o clica per pujar fotos'),
+      photos.length ? h('div', { class: 'thumbs' }, photos.slice(0, 6).map((p) => thumb(p))) : null,
+      h('div', { class: 'dropzone', onclick: () => pickFiles(school.id) }, '📷 Arrossega o clica per pujar fotos o PDF'),
       h('div', { class: 'card-actions' },
         h('a', { class: 'btn ' + (s?.status === 'review' ? 'primary' : ''), href: `#escola/${school.id}` },
           s?.status === 'confirmed' ? 'Veure / editar' : 'Revisar i validar')),
@@ -328,17 +341,18 @@ function renderSchool() {
   if (photoIdx >= s.photos.length) photoIdx = 0;
   const cur = s.photos[photoIdx];
   const stage = h('div', { class: 'stage' },
-    cur ? h('img', {
-      src: cur.url,
-      onclick: () => stage.classList.toggle('zoom'),
-    }) : h('div', { class: 'empty-photo' }, 'Encara no hi ha fotos.', h('br'), 'Arrossega-les aquí o clica "Afegir fotos".'));
+    cur && photoIsPdf(cur) ? h('iframe', { class: 'pdf-view', src: cur.url, title: 'PDF de la comanda' })
+      : cur ? h('img', {
+        src: cur.url,
+        onclick: () => stage.classList.toggle('zoom'),
+      }) : h('div', { class: 'empty-photo' }, 'Encara no hi ha fotos.', h('br'), 'Arrossega-les aquí (fotos o PDF) o clica "Afegir fotos".'));
   const viewer = h('div', { class: 'viewer' },
     stage,
     h('div', { class: 'tools' },
       h('div', { class: 'thumbs' }, s.photos.map((p, i) =>
-        h('img', { src: p.url, class: i === photoIdx ? 'sel' : '', onclick: () => { photoIdx = i; renderSchool(); } }))),
+        thumb(p, { class: i === photoIdx ? 'sel' : '', onclick: () => { photoIdx = i; renderSchool(); } }))),
       h('span', { style: 'flex:1' }),
-      cur ? h('button', { class: 'btn small', title: 'Girar la foto 90° (queda desada)', onclick: async (e) => {
+      cur && !photoIsPdf(cur) ? h('button', { class: 'btn small', title: 'Girar la foto 90° (queda desada)', onclick: async (e) => {
         e.target.disabled = true;
         try {
           state.data.week.submissions[school.id] = await api(`/api/weeks/${state.weekId}/schools/${school.id}/photos/${cur.id}/rotate`, { json: { degrees: 90 } });
