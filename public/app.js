@@ -736,7 +736,13 @@ function renderConfig() {
         h('div', { class: 'card mb' },
           h('h2', {}, 'Estat del sistema'),
           h('p', {}, state.config.ocr ? '✅ Lectura automàtica de fotos activada' : '⚠️ Lectura automàtica de fotos NO configurada (ANTHROPIC_API_KEY)'),
-          h('p', {}, state.config.mail ? '✅ Enviament de correu activat' : '⚠️ Enviament de correu NO configurat al servidor (SMTP). Cal configurar-lo per poder enviar els correus.'))),
+          h('p', {}, state.config.mail ? '✅ Enviament de correu activat' : '⚠️ Enviament de correu NO configurat al servidor (SMTP). Cal configurar-lo per poder enviar els correus.'),
+          state.config.mail ? h('button', { class: 'btn small', onclick: async (e) => {
+            e.target.disabled = true;
+            try { const r = await api('/api/test-mail', { method: 'POST' }); toast(`Correu de prova enviat a ${r.to}`); }
+            catch (err) { toast(err.message, true); }
+            e.target.disabled = false;
+          } }, '✉️ Enviar correu de prova') : null)),
       h('div', { class: 'card' },
         h('div', { class: 'row', style: 'justify-content:space-between' }, h('h2', {}, 'Proveïdors'),
           h('button', { class: 'btn small', onclick: async () => {
