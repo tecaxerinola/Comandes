@@ -921,6 +921,13 @@ async function reload() {
 
 // ===================== Inici =====================
 $('#prevWeek').onclick = async () => { state.weekId = shiftWeek(state.weekId, -1); sessionStorage.setItem('week', state.weekId); await reload(); };
+$('#logout').onclick = async (e) => {
+  e.preventDefault();
+  if (!(await confirmBox('Sortir', 'Vols tancar la sessió? Per tornar a entrar caldrà la contrasenya.', 'Sortir'))) return;
+  await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+  location.hash = '';
+  location.reload();
+};
 $('#nextWeek').onclick = async () => { state.weekId = shiftWeek(state.weekId, 1); sessionStorage.setItem('week', state.weekId); await reload(); };
 
 (async function init() {
