@@ -335,9 +335,16 @@ function renderSchool() {
         } catch (err) { toast(err.message, true); e.target.disabled = false; }
       } }, '⟳ Girar') : null,
       cur ? h('button', { class: 'btn small danger', onclick: async () => {
-        if (!(await confirmBox('Esborrar foto', 'Segur que vols esborrar aquesta foto? Les línies ja llegides es mantenen.', 'Esborrar'))) return;
-        state.data.week.submissions[school.id] = await api(`/api/weeks/${state.weekId}/schools/${school.id}/photos/${cur.id}`, { method: 'DELETE' });
+        if (!(await confirmBox('Esborrar foto', 'Segur que vols esborrar aquesta foto? També es trauran les línies que s\'hi van llegir (les afegides a mà es mantenen).', 'Esborrar'))) return;
+        try {
+          // Primer es desen els canvis pendents, perquè no es perdin ni xoquin amb l'esborrat
+          if (saveState.textContent.startsWith('Canvis')) await persist().catch(() => {});
+          await saveChain.catch(() => {});
+          state.data.week.submissions[school.id] = await api(`/api/weeks/${state.weekId}/schools/${school.id}/photos/${cur.id}`, { method: 'DELETE' });
+          toast('Foto esborrada i línies actualitzades');
+        } catch (err) { toast(err.message, true); await loadState().catch(() => {}); }
         renderSchool();
+        schedulePoll();
       } }, 'Esborrar') : null,
       h('button', { class: 'btn small', onclick: () => pickFiles(school.id) }, '📷 Afegir fotos'),
     ),
@@ -387,6 +394,36 @@ function renderSchool() {
   }
   const orderedKeys = [...providers.map((p) => p.id).filter((id) => byProv.has(id)), ...(byProv.has('') ? [''] : [])];
 
+  // Canviar una sola línia de proveïdor. Si el producte era al catàleg de l'antic, pregunta si
+  // també s'ha de canviar al catàleg, perquè les properes lectures ja el posin al proveïdor bo.
+  const changeProvider = async (it, newId) => {
+    const to = provider(newId);
+    if (!to) return;
+    const from = provider(it.providerId);
+    const name = (it.product || '').trim().toUpperCase();
+    it.providerId = newId;
+    it.inCatalog = to.products.includes(name);
+    autosave();
+    renderSchool();
+    toast(`Línia moguda a ${to.name}`);
+    if (!name || to.products.includes(name)) return;
+    const choice = await dialog('Canviar-ho també al catàleg?',
+      h('p', {}, `Vols que "${name}" sigui de ${to.name} a partir d'ara?`,
+        from?.products.includes(name) ? ` Es traurà de ${from.name}.` : '',
+        h('br'), h('small', { class: 'muted' }, 'Així les properes fotos ja el posaran al proveïdor correcte.')),
+      [{ label: 'Només aquesta línia', value: false }, { label: 'Sí, canviar al catàleg', value: true, class: 'primary' }]);
+    if (!choice) return;
+    try {
+      Object.assign(to, await api(`/api/providers/${to.id}/products`, { json: { name } }));
+      if (from?.products.includes(name)) Object.assign(from, await api(`/api/providers/${from.id}/products`, { method: 'DELETE', json: { name } }));
+      it.product = name;
+      it.inCatalog = true;
+      autosave();
+      renderSchool();
+      toast(`"${name}" ara és de ${to.name}`);
+    } catch (e) { toast(e.message, true); }
+  };
+
   const rowFor = (it) => {
     const p = provider(it.providerId);
     const listId = 'dl-' + (p?.id || 'none');
@@ -413,6 +450,9 @@ function renderSchool() {
       h('td', { class: 'col-note' }, inp('note', { placeholder: 'Nota pel proveïdor' })),
       h('td', { class: 'col-x' },
         h('div', { class: 'row', style: 'gap:2px;flex-wrap:nowrap' },
+          h('select', { class: 'input prov-pick', title: 'Canviar aquesta línia de proveïdor', onchange: (e) => changeProvider(it, e.target.value) },
+            h('option', { value: '' }, '⇄'),
+            activeProviders.filter((x) => x.id !== it.providerId).map((x) => h('option', { value: x.id }, x.name))),
           it.confidence === 'baixa' ? h('button', { class: 'btn small ghost', title: 'Marcar com a revisada', onclick: () => { it.confidence = 'alta'; autosave(); renderSchool(); } }, '✓') : null,
           h('button', { class: 'btn small ghost danger', title: 'Esborrar línia', onclick: () => { s.items = s.items.filter((x) => x !== it); autosave(); renderSchool(); } }, '✕'))),
     );
@@ -484,7 +524,21 @@ function renderSchool() {
             if (s.items.some((i) => i.source === 'ia') && !(await confirmBox('Tornar a llegir', 'Es substituiran les línies llegides automàticament (les afegides a mà es mantenen). Continuar?', 'Tornar a llegir'))) return;
             state.data.week.submissions[school.id] = await api(`/api/weeks/${state.weekId}/schools/${school.id}/read`, { method: 'POST' });
             await loadState(); renderSchool();
-          } }, '🔄 Tornar a llegir les fotos') : null),
+          } }, '🔄 Tornar a llegir les fotos') : null,
+          s.photos.length || s.items.length ? h('button', { class: 'btn danger', disabled: s.reading, onclick: async () => {
+            const ok = await confirmBox('Esborrar la comanda',
+              `S'esborraran totes les fotos i totes les línies de ${school.name} d'aquesta setmana, i la comanda tornarà a quedar pendent. No es pot desfer.`,
+              'Esborrar-ho tot');
+            if (!ok) return;
+            clearTimeout(saveTimer);
+            try {
+              await saveChain.catch(() => {});
+              state.data.week.submissions[school.id] = await api(`/api/weeks/${state.weekId}/schools/${school.id}`, { method: 'DELETE' });
+              photoIdx = 0;
+              toast(`Comanda de ${school.name} esborrada`);
+            } catch (err) { toast(err.message, true); await loadState().catch(() => {}); }
+            renderSchool();
+          } }, '🗑️ Esborrar la comanda') : null),
         h('div', { class: 'card mb' },
           h('label', { class: 'f', style: 'margin-top:0' }, 'Observacions (internes)'),
           h('textarea', { rows: 3, value: s.observations || '', oninput: (e) => { s.observations = e.target.value; autosave(); } })),

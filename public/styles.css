@@ -158,6 +158,8 @@ table.items input:focus, table.items select:focus { border-color: var(--primary)
 .tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--gray-bg); color: var(--muted); margin-left: 6px; }
 .tag.warn { background: var(--orange-bg); color: var(--orange); }
 .col-prod { width: 38%; } .col-qty { width: 16%; } .col-day { width: 14%; } .col-note { width: 20%; } .col-x { width: 44px; }
+/* Selector per canviar una línia de proveïdor: només es veu la icona ⇄ fins que s'obre */
+table.items select.prov-pick { width: 34px; padding: 4px 2px; border-color: var(--line); cursor: pointer; text-align: center; appearance: none; -webkit-appearance: none; }
 
 .sticky-actions {
   position: sticky; bottom: 0; background: rgba(244, 246, 249, .95); backdrop-filter: blur(4px);

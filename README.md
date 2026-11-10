@@ -11,6 +11,10 @@ a les comandes que s'envien a cada proveïdor (per correu, WhatsApp, telèfon o 
 2. **Revisar i validar** — Al costat de la foto hi ha la llista de línies agrupades per proveïdor.
    Es poden corregir, afegir, esborrar o moure a un altre proveïdor. Les línies dubtoses surten en **groc**
    i les correccions que ha fet el cuiner (productes ratllats, etc.) porten una nota ℹ️.
+   - **⇄** al costat de cada línia: la passa a un altre proveïdor. Si el producte és d'un altre proveïdor,
+     l'app pregunta si també s'ha de canviar al catàleg, perquè les properes fotos ja el posin al proveïdor bo.
+   - **Esborrar una foto** treu també les línies que s'hi van llegir (les afegides a mà es mantenen).
+   - **🗑️ Esborrar la comanda** esborra totes les fotos i línies de l'escola per tornar a començar de zero.
    Quan està bé, **Confirmar comanda** (passa automàticament a la següent escola per revisar).
 3. **Enviar** — Per a cada proveïdor es veu quines escoles hi tenen comanda i un botó per enviar-la:
    - ✉️ **Correu**: envia directament des de `jordi@tecaxerinola.com` "Comanda setmana X / Bon dia, Adjuntem comanda. Gràcies" amb un **PDF** on, per a cada
