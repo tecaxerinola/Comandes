@@ -479,6 +479,11 @@ function renderSchool() {
             h('option', { value: '' }, '⇄'),
             activeProviders.filter((x) => x.id !== it.providerId).map((x) => h('option', { value: x.id }, x.name))),
           it.confidence === 'baixa' ? h('button', { class: 'btn small ghost', title: 'Marcar com a revisada', onclick: () => { it.confidence = 'alta'; autosave(); renderSchool(); } }, '✓') : null,
+          h('button', {
+            class: 'btn small to-school' + (it.toSchool ? ' on' : ''),
+            title: it.toSchool ? "Surt a la llista per portar a l'escola (clica per treure-la)" : "Afegir a la llista per portar a l'escola",
+            onclick: () => { it.toSchool = !it.toSchool; autosave(); renderSchool(); },
+          }, '🏫'),
           h('button', { class: 'btn small ghost danger', title: 'Esborrar línia', onclick: () => { s.items = s.items.filter((x) => x !== it); autosave(); renderSchool(); } }, '✕'))),
     );
     return tr;
@@ -676,9 +681,29 @@ async function renderSend() {
     notConfirmed.length
       ? h('div', { class: 'alert warn' }, `Falten per confirmar: ${notConfirmed.join(', ')}. Pots enviar igualment, però aquestes escoles no hi sortiran.`)
       : h('div', { class: 'alert ok' }, 'Totes les escoles actives estan confirmades ✓'),
+    schoolListCard(data.schoolList),
     !state.config.mail ? h('div', { class: 'alert error' }, 'L\'enviament de correu encara no està configurat al servidor (dades SMTP del compte ', data.from, '). Fins que no es configuri, els botons de correu estan desactivats.') : null,
     orders.length ? h('div', { class: 'order-grid' }, cards) : h('div', { class: 'card muted' }, 'Encara no hi ha cap comanda aquesta setmana.'),
   );
+}
+// Targeta de la llista per portar a les escoles (línies marcades amb 🏫)
+function schoolListCard(sl) {
+  if (!sl || (!sl.lines && !sl.pending?.length)) {
+    return h('div', { class: 'card mb muted', style: 'font-size:14px' },
+      "🏫 Llista per portar a les escoles: no hi ha cap línia marcada. A la revisió de cada escola, clica 🏫 al costat de la creu de les línies que s'hi han de portar.");
+  }
+  const url = `/api/weeks/${state.weekId}/school-list/pdf`;
+  return h('div', { class: 'card mb school-list-card' },
+    h('div', { class: 'row', style: 'justify-content:space-between' },
+      h('div', {},
+        h('h2', { style: 'margin:0' }, '🏫 Llista per portar a les escoles'),
+        h('div', { class: 'muted', style: 'font-size:13px;margin-top:4px' },
+          `${sl.lines} ${sl.lines === 1 ? 'producte' : 'productes'} de ${sl.schools} ${sl.schools === 1 ? 'escola' : 'escoles'} · Producte / Quantitat / Escola`)),
+      h('div', { class: 'row' },
+        h('a', { class: 'btn primary' + (sl.lines ? '' : ' disabled'), href: sl.lines ? url : undefined, target: '_blank' }, '📄 Veure / imprimir PDF'),
+        h('a', { class: 'btn' + (sl.lines ? '' : ' disabled'), href: sl.lines ? url + '?download=1' : undefined }, '⬇️ Descarregar'))),
+    sl.pending?.length ? h('div', { class: 'alert warn', style: 'margin:10px 0 0' },
+      `Escoles amb línies marcades però sense confirmar (no hi surten): ${sl.pending.join(', ')}`) : null);
 }
 const waPhone = (phone) => { const d = phone.replace(/\D/g, ''); return d.length === 9 ? '34' + d : d; };
 const channelLabel = (p) => ({ email: '✉️ Correu', whatsapp: '💬 WhatsApp', phone: '📞 Trucar', print: '🖨️ Imprimir' }[p.channel] || p.channel);

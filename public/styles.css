@@ -166,6 +166,9 @@ table.items input:focus, table.items select:focus { border-color: var(--primary)
 .tag { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--gray-bg); color: var(--muted); margin-left: 6px; }
 .tag.warn { background: var(--orange-bg); color: var(--orange); }
 .col-prod { width: 38%; } .col-qty { width: 16%; } .col-day { width: 14%; } .col-note { width: 20%; } .col-x { width: 44px; }
+/* Botó 🏫: la línia surt a la llista per portar a l'escola */
+.btn.to-school { padding: 4px 6px; filter: grayscale(1); opacity: .45; background: transparent; border-color: var(--line); }
+.btn.to-school.on { filter: none; opacity: 1; background: var(--primary-bg); border-color: var(--primary); }
 /* Les fotos de la pàgina no s'arrosseguen (arrossegar-les les tornava a pujar) */
 img { -webkit-user-drag: none; user-drag: none; }
 /* Selector per canviar una línia de proveïdor: només es veu la icona ⇄ fins que s'obre */
