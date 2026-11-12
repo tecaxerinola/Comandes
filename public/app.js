@@ -76,7 +76,9 @@ function dialog(title, body, buttons) {
       h('div', { class: 'actions' }, buttons.map((b) =>
         h('button', { class: 'btn ' + (b.class || ''), onclick: () => { d.close(); resolve(b.value); } }, b.label))),
     );
-    d.onclose = () => resolve(undefined);
+    // L'esdeveniment "close" arriba més tard: si mentrestant s'ha obert un altre diàleg (dos avisos
+    // seguits), no l'ha de tancar com a cancel·lat.
+    d.onclose = () => { if (!d.open) resolve(undefined); };
     d.showModal();
   });
 }
