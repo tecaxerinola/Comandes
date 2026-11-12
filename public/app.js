@@ -588,6 +588,16 @@ async function renderSend() {
   const { orders, notConfirmed, subject } = data;
 
   const doSendMail = async (o, btn) => {
+    // Si ja s'ha enviat, avís clar: el proveïdor el rebria dues vegades
+    if (o.sent) {
+      const again = await dialog(`⚠️ ${o.provider.name} ja ha rebut aquesta comanda`,
+        h('div', {},
+          h('p', { class: 'alert warn', style: 'margin:0 0 10px' },
+            `Es va enviar el ${fmtDateTime(o.sent.at)}${o.sent.to ? ` a ${o.sent.to}` : ''}. Si la tornes a enviar, la rebrà dues vegades.`),
+          h('p', {}, 'Només cal tornar-la a enviar si hi has fet canvis o si el proveïdor diu que no li ha arribat.')),
+        [{ label: 'No, no la tornis a enviar', value: false, class: 'primary' }, { label: 'Sí, tornar-la a enviar', value: true, class: 'danger' }]);
+      if (!again) return false;
+    }
     if (!(await confirmBox('Enviar correu', `S'enviarà "${subject}" des de ${data.from} a ${o.provider.emails.join(', ')} amb el PDF de ${o.confirmedSchools} escola(es). Rebràs una còpia oculta a ${data.from}.`, 'Enviar'))) return false;
     btn && (btn.disabled = true, btn.textContent = 'Enviant…');
     try {
