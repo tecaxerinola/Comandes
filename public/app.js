@@ -349,7 +349,7 @@ function renderSchool() {
         onclick: () => stage.classList.toggle('zoom'),
       }) : s.filesClearedAt
         ? h('div', { class: 'empty-photo' }, `🗂️ Les fotos i PDF d'aquesta comanda es van esborrar el ${fmtDateTime(s.filesClearedAt)},`, h('br'),
-          'un cop enviada a tots els proveïdors, per estalviar espai.', h('br'), 'Les línies de la comanda es mantenen.')
+          '7 dies després d\'enviar la setmana a tots els proveïdors, per estalviar espai.', h('br'), 'Les línies de la comanda es mantenen.')
         : h('div', { class: 'empty-photo' }, 'Encara no hi ha fotos.', h('br'), 'Arrossega-les aquí (fotos o PDF) o clica "Afegir fotos".'));
   const viewer = h('div', { class: 'viewer' },
     stage,
@@ -606,9 +606,8 @@ async function renderSend() {
     if (!(await confirmBox('Enviar correu', `S'enviarà "${subject}" des de ${data.from} a ${o.provider.emails.join(', ')} amb el PDF de ${o.confirmedSchools} escola(es). Rebràs una còpia oculta a ${data.from}.`, 'Enviar'))) return false;
     btn && (btn.disabled = true, btn.textContent = 'Enviant…');
     try {
-      const r = await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/send-mail`, { method: 'POST' });
-      toast(`Correu enviat a ${o.provider.name} ✓${clearedNote(r.cleared)}`);
-      if (r.cleared?.length) loadState().catch(() => {});
+      await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/send-mail`, { method: 'POST' });
+      toast(`Correu enviat a ${o.provider.name} ✓`);
       return true;
     } catch (e) {
       toast(e.message, true);
@@ -617,8 +616,7 @@ async function renderSend() {
     }
   };
   const markSent = async (o, via, undo = false) => {
-    const r = await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/mark-sent`, { json: { via, undo } });
-    if (r.cleared?.length) { toast(`Marcat com enviat.${clearedNote(r.cleared)}`); loadState().catch(() => {}); }
+    await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/mark-sent`, { json: { via, undo } });
     renderSend();
   };
   const pdfUrl = (o, dl) => `/api/weeks/${state.weekId}/orders/${o.provider.id}/pdf${dl ? '?download=1' : ''}`;
@@ -692,16 +690,10 @@ async function renderSend() {
     ? h('button', { class: 'btn primary', onclick: async () => {
       if (!(await confirmBox('Enviar tots els correus', `S'enviarà el correu a ${sendable.length} proveïdor(s): ${sendable.map((o) => o.provider.name).join(', ')}.`, 'Enviar tots'))) return;
       let ok = 0;
-      const cleared = [];
       for (const o of sendable) {
-        try {
-          const r = await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/send-mail`, { method: 'POST' });
-          cleared.push(...(r.cleared || []));
-          ok++;
-        } catch (e) { toast(`${o.provider.name}: ${e.message}`, true); }
+        try { await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/send-mail`, { method: 'POST' }); ok++; } catch (e) { toast(`${o.provider.name}: ${e.message}`, true); }
       }
-      toast(`${ok} correu(s) enviat(s)${clearedNote(cleared)}`);
-      if (cleared.length) loadState().catch(() => {});
+      toast(`${ok} correu(s) enviat(s)`);
       renderSend();
     } }, `✉️ Enviar tots els correus pendents (${sendable.length})`)
     : null;
@@ -714,12 +706,22 @@ async function renderSend() {
       ? h('div', { class: 'alert warn' }, `Falten per confirmar: ${notConfirmed.join(', ')}. Pots enviar igualment, però aquestes escoles no hi sortiran.`)
       : h('div', { class: 'alert ok' }, 'Totes les escoles actives estan confirmades ✓'),
     schoolListCard(data.schoolList),
+    filesNotice(data.files),
     !state.config.mail ? h('div', { class: 'alert error' }, 'L\'enviament de correu encara no està configurat al servidor (dades SMTP del compte ', data.from, '). Fins que no es configuri, els botons de correu estan desactivats.') : null,
     orders.length ? h('div', { class: 'order-grid' }, cards) : h('div', { class: 'card muted' }, 'Encara no hi ha cap comanda aquesta setmana.'),
   );
 }
-// Escoles a qui s'han esborrat els fitxers perquè ja s'han enviat a tots els proveïdors
-const clearedNote = (list) => (list?.length ? ` · Fitxers esborrats (ja enviades): ${list.join(', ')}` : '');
+// Avís de quan s'esborraran les fotos i PDF de la setmana (7 dies després d'enviar-ho tot)
+function filesNotice(f) {
+  if (!f?.files) return null;
+  const n = `${f.files} ${f.files === 1 ? 'fitxer' : 'fitxers'} (fotos i PDF)`;
+  if (!f.deleteAt) {
+    return h('div', { class: 'alert info' }, `🗂️ Aquesta setmana té ${n}. S'esborraran 7 dies després que tots els proveïdors constin com a enviats`,
+      f.unsent?.length ? ` (falta: ${f.unsent.join(', ')}).` : '.', ' Les línies i l\'històric es mantenen.');
+  }
+  const d = new Date(f.deleteAt).toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric', month: 'numeric' });
+  return h('div', { class: 'alert info' }, `🗂️ Tot enviat. Els ${n} d'aquesta setmana s'esborraran el ${d}. Fins llavors els podeu revisar. Les línies i l'històric es mantenen.`);
+}
 
 // Targeta de la llista per portar a les escoles (línies marcades amb 🏫)
 function schoolListCard(sl) {
