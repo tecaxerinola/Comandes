@@ -292,7 +292,9 @@ function renderSchools() {
     const card = h('div', { class: 'card school-card' },
       h('div', { class: 'head' }, h('h2', {}, school.name), statusBadge(s)),
       h('div', { class: 'meta' },
-        `${photos.length} foto${photos.length === 1 ? '' : 's'} · ${lines} ${lines === 1 ? 'línia' : 'línies'}`,
+        !photos.length && s?.filesClearedAt
+          ? `fitxers esborrats (enviada) · ${lines} ${lines === 1 ? 'línia' : 'línies'}`
+          : `${photos.length} foto${photos.length === 1 ? '' : 's'} · ${lines} ${lines === 1 ? 'línia' : 'línies'}`,
         low ? h('span', { class: 'tag warn' }, `${low} a revisar`) : null,
         s?.readError ? h('span', { class: 'tag warn' }, 'error de lectura') : null),
       photos.length ? h('div', { class: 'thumbs' }, photos.slice(0, 6).map((p) => thumb(p))) : null,
@@ -345,7 +347,10 @@ function renderSchool() {
       : cur ? h('img', {
         src: cur.url,
         onclick: () => stage.classList.toggle('zoom'),
-      }) : h('div', { class: 'empty-photo' }, 'Encara no hi ha fotos.', h('br'), 'Arrossega-les aquí (fotos o PDF) o clica "Afegir fotos".'));
+      }) : s.filesClearedAt
+        ? h('div', { class: 'empty-photo' }, `🗂️ Les fotos i PDF d'aquesta comanda es van esborrar el ${fmtDateTime(s.filesClearedAt)},`, h('br'),
+          'un cop enviada a tots els proveïdors, per estalviar espai.', h('br'), 'Les línies de la comanda es mantenen.')
+        : h('div', { class: 'empty-photo' }, 'Encara no hi ha fotos.', h('br'), 'Arrossega-les aquí (fotos o PDF) o clica "Afegir fotos".'));
   const viewer = h('div', { class: 'viewer' },
     stage,
     h('div', { class: 'tools' },
@@ -601,8 +606,9 @@ async function renderSend() {
     if (!(await confirmBox('Enviar correu', `S'enviarà "${subject}" des de ${data.from} a ${o.provider.emails.join(', ')} amb el PDF de ${o.confirmedSchools} escola(es). Rebràs una còpia oculta a ${data.from}.`, 'Enviar'))) return false;
     btn && (btn.disabled = true, btn.textContent = 'Enviant…');
     try {
-      await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/send-mail`, { method: 'POST' });
-      toast(`Correu enviat a ${o.provider.name} ✓`);
+      const r = await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/send-mail`, { method: 'POST' });
+      toast(`Correu enviat a ${o.provider.name} ✓${clearedNote(r.cleared)}`);
+      if (r.cleared?.length) loadState().catch(() => {});
       return true;
     } catch (e) {
       toast(e.message, true);
@@ -611,7 +617,8 @@ async function renderSend() {
     }
   };
   const markSent = async (o, via, undo = false) => {
-    await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/mark-sent`, { json: { via, undo } });
+    const r = await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/mark-sent`, { json: { via, undo } });
+    if (r.cleared?.length) { toast(`Marcat com enviat.${clearedNote(r.cleared)}`); loadState().catch(() => {}); }
     renderSend();
   };
   const pdfUrl = (o, dl) => `/api/weeks/${state.weekId}/orders/${o.provider.id}/pdf${dl ? '?download=1' : ''}`;
@@ -685,10 +692,16 @@ async function renderSend() {
     ? h('button', { class: 'btn primary', onclick: async () => {
       if (!(await confirmBox('Enviar tots els correus', `S'enviarà el correu a ${sendable.length} proveïdor(s): ${sendable.map((o) => o.provider.name).join(', ')}.`, 'Enviar tots'))) return;
       let ok = 0;
+      const cleared = [];
       for (const o of sendable) {
-        try { await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/send-mail`, { method: 'POST' }); ok++; } catch (e) { toast(`${o.provider.name}: ${e.message}`, true); }
+        try {
+          const r = await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/send-mail`, { method: 'POST' });
+          cleared.push(...(r.cleared || []));
+          ok++;
+        } catch (e) { toast(`${o.provider.name}: ${e.message}`, true); }
       }
-      toast(`${ok} correu(s) enviat(s)`);
+      toast(`${ok} correu(s) enviat(s)${clearedNote(cleared)}`);
+      if (cleared.length) loadState().catch(() => {});
       renderSend();
     } }, `✉️ Enviar tots els correus pendents (${sendable.length})`)
     : null;
@@ -705,6 +718,9 @@ async function renderSend() {
     orders.length ? h('div', { class: 'order-grid' }, cards) : h('div', { class: 'card muted' }, 'Encara no hi ha cap comanda aquesta setmana.'),
   );
 }
+// Escoles a qui s'han esborrat els fitxers perquè ja s'han enviat a tots els proveïdors
+const clearedNote = (list) => (list?.length ? ` · Fitxers esborrats (ja enviades): ${list.join(', ')}` : '');
+
 // Targeta de la llista per portar a les escoles (línies marcades amb 🏫)
 function schoolListCard(sl) {
   if (!sl || (!sl.lines && !sl.pending?.length)) {
