@@ -588,7 +588,7 @@ async function renderSend() {
   const { orders, notConfirmed, subject } = data;
 
   const doSendMail = async (o, btn) => {
-    if (!(await confirmBox('Enviar correu', `S'enviarà "${subject}" des de ${data.from} a ${o.provider.emails.join(', ')} amb el PDF de ${o.confirmedSchools} escola(es).`, 'Enviar'))) return false;
+    if (!(await confirmBox('Enviar correu', `S'enviarà "${subject}" des de ${data.from} a ${o.provider.emails.join(', ')} amb el PDF de ${o.confirmedSchools} escola(es). Rebràs una còpia oculta a ${data.from}.`, 'Enviar'))) return false;
     btn && (btn.disabled = true, btn.textContent = 'Enviant…');
     try {
       await api(`/api/weeks/${state.weekId}/orders/${o.provider.id}/send-mail`, { method: 'POST' });
