@@ -668,10 +668,11 @@ async function renderSend() {
       : h('button', { class: 'btn ghost small', disabled: !ready, onclick: () => markSent(o, 'manual') }, 'Marcar com enviat'));
 
     const totalLines = o.schools.reduce((n, s) => n + s.items.length, 0);
-    return h('div', { class: 'card order-card' + (o.sent ? ' sent' : '') },
+    return h('div', { class: 'card order-card' + (o.sent ? ' sent' : ready ? ' unsent' : ''), id: `prov-${p.id}` },
       h('div', { class: 'head' },
         h('h2', {}, p.name),
-        o.sent ? h('span', { class: 'badge confirmed' }, `Enviat ${fmtDateTime(o.sent.at)} (${o.sent.via})`) : h('span', { class: 'badge pending' }, 'No enviat')),
+        o.sent ? h('span', { class: 'badge confirmed' }, `Enviat ${fmtDateTime(o.sent.at)} (${o.sent.via})`)
+          : ready ? h('span', { class: 'badge error' }, '⚠️ Falta enviar') : h('span', { class: 'badge pending' }, 'No enviat')),
       h('div', { class: 'recip' }, channelLabel(p), o.recipients ? ' · ' + o.recipients : '', p.notes ? ` · ${p.notes}` : ''),
       h('div', { class: 'chips' }, o.schools.map((s) => h('span', { class: 'chip' + (s.status === 'confirmed' ? '' : ' pend'), title: s.status === 'confirmed' ? 'Confirmada' : 'Pendent de confirmar' }, `${s.name} (${s.items.length})`))),
       o.pendingSchools.length ? h('div', { class: 'alert warn', style: 'margin:0' }, `Escoles sense confirmar (no s'enviaran): ${o.pendingSchools.join(', ')}`) : null,
@@ -705,12 +706,34 @@ async function renderSend() {
     notConfirmed.length
       ? h('div', { class: 'alert warn' }, `Falten per confirmar: ${notConfirmed.join(', ')}. Pots enviar igualment, però aquestes escoles no hi sortiran.`)
       : h('div', { class: 'alert ok' }, 'Totes les escoles actives estan confirmades ✓'),
+    finishNotice(orders),
     schoolListCard(data.schoolList),
     filesNotice(data.files),
     !state.config.mail ? h('div', { class: 'alert error' }, 'L\'enviament de correu encara no està configurat al servidor (dades SMTP del compte ', data.from, '). Fins que no es configuri, els botons de correu estan desactivats.') : null,
     orders.length ? h('div', { class: 'order-grid' }, cards) : h('div', { class: 'card muted' }, 'Encara no hi ha cap comanda aquesta setmana.'),
   );
 }
+// Avís per finalitzar el procés de comandes: quins proveïdors falten per enviar o marcar com enviats
+function finishNotice(orders) {
+  const ready = orders.filter((o) => o.confirmedSchools > 0);
+  if (!ready.length) return null;
+  const missing = ready.filter((o) => !o.sent);
+  if (!missing.length) {
+    return h('div', { class: 'alert ok finish' }, '✅ Procés de comandes finalitzat: tots els proveïdors consten com a enviats.');
+  }
+  const how = (p) => (p.channel === 'phone' ? 'trucar i després "Marcar com enviat"'
+    : p.channel === 'print' ? 'imprimir' : p.channel === 'whatsapp' ? 'enviar per WhatsApp' : 'enviar per correu');
+  return h('div', { class: 'alert error finish' },
+    h('div', { style: 'flex:1;min-width:260px' },
+      `⚠️ Per finalitzar el procés de comandes, falta${missing.length > 1 ? 'en' : ''} ${missing.length} de ${ready.length} proveïdors:`,
+      h('ul', {}, missing.map((o) => h('li', {},
+        h('a', { href: '#', style: 'color:inherit;font-weight:700', onclick: (e) => {
+          e.preventDefault();
+          document.getElementById(`prov-${o.provider.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } }, o.provider.name), ` — ${how(o.provider)}`))),
+      h('div', { style: 'font-weight:400;margin-top:6px' }, 'Si ja ho heu fet per un altre camí, cliqueu "Marcar com enviat" a la seva targeta (en vermell).')));
+}
+
 // Avís de quan s'esborraran les fotos i PDF de la setmana (7 dies després d'enviar-ho tot)
 function filesNotice(f) {
   if (!f?.files) return null;

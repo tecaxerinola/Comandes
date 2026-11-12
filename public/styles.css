@@ -196,6 +196,10 @@ textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; paddi
 .order-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; }
 @media (max-width: 500px) { .order-grid { grid-template-columns: 1fr; } }
 .card.sent { border-color: var(--green); }
+/* Proveïdor amb comanda confirmada que encara no consta com a enviat */
+.card.unsent { border-color: var(--red); background: #fff8f7; }
+.alert.finish { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 600; }
+.alert.finish ul { margin: 6px 0 0; padding-left: 20px; font-weight: 400; }
 
 /* ---------- Configuració ---------- */
 .cfg { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
