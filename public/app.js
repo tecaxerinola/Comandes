@@ -639,6 +639,15 @@ async function renderSend() {
     if (p.channel === 'whatsapp' || p.channel === 'phone') {
       actions.push(h('button', { class: 'btn', disabled: !ready, onclick: () => navigator.clipboard.writeText(o.text).then(() => toast('Text copiat')) }, '📋 Copiar text'));
     }
+    if (p.emails?.length && ready && state.config.mail) {
+      const cb = h('button', { class: 'btn ghost small', title: `Envia una còpia d'aquesta comanda només a ${data.from}`, onclick: async () => {
+        cb.disabled = true;
+        try { const r = await api(`/api/weeks/${state.weekId}/orders/${p.id}/send-copy`, { method: 'POST' }); toast(`Còpia enviada a ${r.to}`); }
+        catch (e) { toast(e.message, true); }
+        cb.disabled = false;
+      } }, '📩 Enviar-me una còpia');
+      actions.push(cb);
+    }
     actions.push(o.sent
       ? h('button', { class: 'btn ghost small', onclick: () => markSent(o, '', true) }, 'Desmarcar enviat')
       : h('button', { class: 'btn ghost small', disabled: !ready, onclick: () => markSent(o, 'manual') }, 'Marcar com enviat'));
